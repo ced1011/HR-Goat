@@ -1,29 +1,29 @@
 
 import { toast } from 'sonner';
 import { ApiResponse } from '../api-models';
-import { db } from '../database';
 
 class DatabaseSetupService {
   private baseUrl: string;
   
   constructor() {
-    this.baseUrl = '/api/database-setup';
+    // Base URL for the backend server
+    this.baseUrl = 'http://localhost:5000/api';
   }
   
   async testConnection(): Promise<ApiResponse<{ success: boolean; message: string }>> {
     try {
-      // Try to connect to the database
-      const result = await db.testConnection();
+      const response = await fetch(`${this.baseUrl}/test-connection`);
+      const data = await response.json();
       
-      if (result.error) {
+      if (!response.ok) {
         return {
-          data: { success: false, message: `Failed to connect to database: ${result.error}` },
-          error: result.error
+          data: { success: false, message: data.message || 'Failed to connect to database' },
+          error: data.message
         };
       }
       
       return {
-        data: { success: true, message: 'Successfully connected to database' },
+        data: { success: data.success, message: data.message },
         error: null
       };
     } catch (error) {
@@ -38,17 +38,24 @@ class DatabaseSetupService {
   
   async runSetupScript(): Promise<ApiResponse<{ success: boolean; message: string }>> {
     try {
-      const result = await db.runScript('setup-database');
+      const response = await fetch(`${this.baseUrl}/run-setup-script`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
-      if (result.error) {
+      const data = await response.json();
+      
+      if (!response.ok) {
         return {
-          data: { success: false, message: `Failed to run setup script: ${result.error}` },
-          error: result.error
+          data: { success: false, message: data.message || 'Failed to run setup script' },
+          error: data.message
         };
       }
       
       return {
-        data: { success: true, message: 'Database setup script executed successfully' },
+        data: { success: data.success, message: data.message },
         error: null
       };
     } catch (error) {
@@ -63,17 +70,24 @@ class DatabaseSetupService {
   
   async runMockDataScript(): Promise<ApiResponse<{ success: boolean; message: string }>> {
     try {
-      const result = await db.runScript('insert-mock-data');
+      const response = await fetch(`${this.baseUrl}/run-mock-data-script`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
-      if (result.error) {
+      const data = await response.json();
+      
+      if (!response.ok) {
         return {
-          data: { success: false, message: `Failed to run mock data script: ${result.error}` },
-          error: result.error
+          data: { success: false, message: data.message || 'Failed to run mock data script' },
+          error: data.message
         };
       }
       
       return {
-        data: { success: true, message: 'Mock data inserted successfully' },
+        data: { success: data.success, message: data.message },
         error: null
       };
     } catch (error) {
@@ -88,39 +102,18 @@ class DatabaseSetupService {
   
   async getDatabaseStats(): Promise<ApiResponse<{ tables: { name: string; rowCount: number }[] }>> {
     try {
-      const result = await db.query('SHOW TABLES');
+      const response = await fetch(`${this.baseUrl}/database-stats`);
+      const data = await response.json();
       
-      if (result.error) {
+      if (!response.ok) {
         return {
           data: { tables: [] },
-          error: result.error
+          error: data.message
         };
       }
       
-      const tables: { name: string; rowCount: number }[] = [];
-      
-      // Parse the tables from the result
-      if (Array.isArray(result.data)) {
-        for (const table of result.data) {
-          const tableName = Object.values(table)[0] as string;
-          const countResult = await db.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-          
-          if (!countResult.error && Array.isArray(countResult.data) && countResult.data.length > 0) {
-            tables.push({
-              name: tableName,
-              rowCount: countResult.data[0].count
-            });
-          } else {
-            tables.push({
-              name: tableName,
-              rowCount: 0
-            });
-          }
-        }
-      }
-      
       return {
-        data: { tables },
+        data: { tables: data.tables || [] },
         error: null
       };
     } catch (error) {
