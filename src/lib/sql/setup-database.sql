@@ -18,6 +18,19 @@ CREATE TABLE IF NOT EXISTS employees (
   bio TEXT
 );
 
+-- Create Users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  email VARCHAR(100) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin', 'manager', 'employee') NOT NULL DEFAULT 'employee',
+  employee_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_login TIMESTAMP NULL,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
 -- Create Payslips table
 CREATE TABLE IF NOT EXISTS payslips (
   id INT PRIMARY KEY AUTO_INCREMENT,

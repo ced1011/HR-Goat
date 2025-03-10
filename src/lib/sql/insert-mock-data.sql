@@ -13,6 +13,14 @@ VALUES
 (7, 'James Wilson', 'Backend Developer', 'Engineering', 'james.wilson@company.com', '(555) 456-7890', 'Remote', 'https://randomuser.me/api/portraits/men/91.jpg', '2020-06-15', 'active', 'John Doe', 110000.00, 'James specializes in building scalable backend systems using Python and Go. He previously worked at a fintech startup.'),
 (8, 'Lisa Chen', 'Marketing Director', 'Marketing', 'lisa.chen@company.com', '(555) 567-8901', 'San Francisco, CA', 'https://randomuser.me/api/portraits/women/76.jpg', '2018-03-01', 'active', 'Robert Johnson', 140000.00, 'Lisa oversees all marketing initiatives and has a proven track record of driving growth through innovative marketing strategies.');
 
+-- Insert Users for authentication (passwords are hashed - all passwords are 'password123')
+INSERT INTO users (id, username, email, password_hash, role, employee_id)
+VALUES
+(1, 'johndoe', 'john.doe@company.com', '$2a$12$RG5FSP6JklfthY9qgdqFOu88J/qsU8/5oz7t.AjhKTeoOsTlqRBsi', 'admin', 1),
+(2, 'janesmith', 'jane.smith@company.com', '$2a$12$RG5FSP6JklfthY9qgdqFOu88J/qsU8/5oz7t.AjhKTeoOsTlqRBsi', 'manager', 2),
+(3, 'michaelchen', 'michael.chen@company.com', '$2a$12$RG5FSP6JklfthY9qgdqFOu88J/qsU8/5oz7t.AjhKTeoOsTlqRBsi', 'employee', 3),
+(4, 'admin', 'admin@company.com', '$2a$12$RG5FSP6JklfthY9qgdqFOu88J/qsU8/5oz7t.AjhKTeoOsTlqRBsi', 'admin', NULL);
+
 -- Insert Payslips
 INSERT INTO payslips (id, employee_id, period_start, period_end, gross_amount, net_amount, taxes, other_deductions, payment_date, status)
 VALUES

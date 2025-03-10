@@ -53,8 +53,8 @@ class DatabaseSetupService {
   
   async checkDatabaseStatus(): Promise<ApiResponse<{ exists: boolean }>> {
     try {
-      // Try to query the employees table to see if it exists
-      const result = await db.query('SELECT 1 FROM employees LIMIT 1');
+      // Try to query the users table to see if it exists
+      const result = await db.query('SELECT 1 FROM users LIMIT 1');
       
       return {
         data: {

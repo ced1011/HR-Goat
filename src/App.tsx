@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import Login from './pages/Login';
 import Index from './pages/Index';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -11,10 +12,13 @@ import Performance from './pages/Performance';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 import DatabaseSetup from './pages/DatabaseSetup';
+import Unauthorized from './pages/Unauthorized';
 
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
 import { Toaster } from './components/ui/sonner';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 import './App.css';
 
@@ -33,25 +37,40 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light">
         <Router>
-          <div className="flex h-screen flex-col">
-            <Header />
-            <div className="flex flex-1 overflow-hidden">
-              <Sidebar />
-              <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6">
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/employees" element={<Employees />} />
-                  <Route path="/employees/:id" element={<Profile />} />
-                  <Route path="/payroll" element={<Payroll />} />
-                  <Route path="/performance" element={<Performance />} />
-                  <Route path="/database-setup" element={<DatabaseSetup />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-            </div>
-          </div>
-          <Toaster />
+          <AuthProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Login />} />
+              <Route path="/unauthorized" element={<Unauthorized />} />
+              
+              {/* Protected routes with layout */}
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <div className="flex h-screen flex-col">
+                      <Header />
+                      <div className="flex flex-1 overflow-hidden">
+                        <Sidebar />
+                        <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6">
+                          <Routes>
+                            <Route path="/dashboard" element={<Dashboard />} />
+                            <Route path="/employees" element={<Employees />} />
+                            <Route path="/employees/:id" element={<Profile />} />
+                            <Route path="/payroll" element={<Payroll />} />
+                            <Route path="/performance" element={<Performance />} />
+                            <Route path="/database-setup" element={<DatabaseSetup />} />
+                            <Route path="*" element={<NotFound />} />
+                          </Routes>
+                        </main>
+                      </div>
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+            <Toaster />
+          </AuthProvider>
         </Router>
       </ThemeProvider>
     </QueryClientProvider>
