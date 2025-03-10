@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -16,11 +17,11 @@ export const Layout = ({ children }: LayoutProps) => {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex flex-col min-h-screen bg-hr-background">
       <Header toggleSidebar={toggleSidebar} isSidebarOpen={sidebarOpen} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar isOpen={isMobile ? sidebarOpen : undefined} />
-        <main className="flex-1 overflow-y-auto bg-background p-4">
+        <Sidebar isOpen={isMobile ? sidebarOpen : true} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 animate-in">
           {children}
         </main>
       </div>
@@ -28,4 +29,4 @@ export const Layout = ({ children }: LayoutProps) => {
   );
 };
 
-export default Layout; 
+export default Layout;
