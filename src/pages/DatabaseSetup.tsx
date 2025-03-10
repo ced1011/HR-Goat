@@ -1,244 +1,356 @@
 
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
-import { Loader2, CheckCircle, XCircle, Database, FileText } from 'lucide-react';
-import { databaseSetupService } from '@/lib/database-setup';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageContainer from '@/components/layout/PageContainer';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { databaseSetupService } from '@/lib/api-services/database-setup';
+import { db } from '@/lib/database';
 import { toast } from 'sonner';
-import setupDatabaseSQL from '@/lib/sql/setup-database.sql?raw';
-import insertMockDataSQL from '@/lib/sql/insert-mock-data.sql?raw';
+import { CheckCircle, XCircle, Database, Play, Table, RefreshCw, FileText, Info } from 'lucide-react';
 
 const DatabaseSetup = () => {
-  const [activeTab, setActiveTab] = useState('status');
+  const navigate = useNavigate();
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'error'>('checking');
+  const [connectionMessage, setConnectionMessage] = useState('Checking database connection...');
+  const [isRunningScript, setIsRunningScript] = useState(false);
+  const [tables, setTables] = useState<{ name: string; rowCount: number }[]>([]);
   
-  // Check database status
-  const { data: dbStatus, isLoading: isStatusLoading, refetch: refetchStatus } = useQuery({
-    queryKey: ['databaseStatus'],
-    queryFn: () => databaseSetupService.checkDatabaseStatus()
-  });
-  
-  // Setup database mutation
-  const { mutate: setupDatabase, isPending: isSettingUp } = useMutation({
-    mutationFn: () => databaseSetupService.setupDatabase(),
-    onSuccess: (result) => {
-      if (result.error) {
-        toast.error('Database setup failed', { description: result.error });
-      } else {
-        toast.success('Database setup completed successfully!');
-        refetchStatus();
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const result = await databaseSetupService.testConnection();
+        
+        if (result.error) {
+          setConnectionStatus('error');
+          setConnectionMessage(result.error);
+        } else {
+          setConnectionStatus('success');
+          setConnectionMessage(result.data.message);
+          fetchDatabaseStats();
+        }
+      } catch (err: unknown) {
+        const error = err as Error;
+        setConnectionStatus('error');
+        setConnectionMessage(error.message || 'Unknown error occurred');
       }
-    },
-    onError: (error) => {
-      toast.error('Database setup failed', { 
-        description: error instanceof Error ? error.message : 'Unknown error occurred'
-      });
-    }
-  });
+    };
+    
+    checkConnection();
+  }, []);
   
-  const handleSetupClick = () => {
-    setupDatabase();
+  const fetchDatabaseStats = async () => {
+    const result = await databaseSetupService.getDatabaseStats();
+    if (!result.error) {
+      setTables(result.data.tables);
+    }
   };
   
-  const dbExists = dbStatus?.data?.exists;
+  const handleRunSetupScript = async () => {
+    setIsRunningScript(true);
+    
+    try {
+      const result = await databaseSetupService.runSetupScript();
+      
+      if (result.error) {
+        toast.error('Setup Failed', {
+          description: result.error
+        });
+      } else {
+        toast.success('Setup Complete', {
+          description: result.data.message
+        });
+        fetchDatabaseStats();
+      }
+    } catch (error) {
+      toast.error('Script Execution Failed', {
+        description: 'An unexpected error occurred'
+      });
+    } finally {
+      setIsRunningScript(false);
+    }
+  };
+  
+  const handleRunMockDataScript = async () => {
+    setIsRunningScript(true);
+    
+    try {
+      const result = await databaseSetupService.runMockDataScript();
+      
+      if (result.error) {
+        toast.error('Failed to Insert Mock Data', {
+          description: result.error
+        });
+      } else {
+        toast.success('Mock Data Inserted', {
+          description: result.data.message
+        });
+        fetchDatabaseStats();
+      }
+    } catch (error) {
+      toast.error('Script Execution Failed', {
+        description: 'An unexpected error occurred'
+      });
+    } finally {
+      setIsRunningScript(false);
+    }
+  };
   
   return (
-    <PageContainer title="Database Setup" description="Set up the HR portal database">
-      <div className="flex flex-col gap-8">
+    <PageContainer
+      className="max-w-6xl mx-auto"
+    >
+      <div className="space-y-1 mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Database Setup</h1>
+        <p className="text-hr-text-secondary">
+          Configure and manage your database connection.
+        </p>
+      </div>
+      
+      <div className="grid gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Database Configuration</CardTitle>
-            <CardDescription>
-              Configure and manage your HR portal database connection
-            </CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center">
+              <Database className="mr-2 h-5 w-5" />
+              Database Connection
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <Alert variant={connectionStatus === 'success' ? 'default' : 'destructive'} className="mb-4">
+              <div className="flex items-center">
+                {connectionStatus === 'checking' ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : connectionStatus === 'success' ? (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                ) : (
+                  <XCircle className="h-4 w-4 mr-2" />
+                )}
+                <AlertTitle>
+                  {connectionStatus === 'checking' ? 'Checking Connection' : 
+                   connectionStatus === 'success' ? 'Connection Established' : 
+                   'Connection Error'}
+                </AlertTitle>
+              </div>
+              <AlertDescription>{connectionMessage}</AlertDescription>
+            </Alert>
+            
+            <div className="space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <h3 className="font-medium">Host</h3>
-                  <p className="text-sm text-muted-foreground break-all">
-                    database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com
-                  </p>
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Host</h3>
+                  <p className="text-sm">database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com</p>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="font-medium">Username</h3>
-                  <p className="text-sm text-muted-foreground">admin</p>
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Username</h3>
+                  <p className="text-sm">admin</p>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="font-medium">Database Name</h3>
-                  <p className="text-sm text-muted-foreground">hr_portal</p>
+                <div>
+                  <h3 className="text-sm font-medium mb-1">Password</h3>
+                  <p className="text-sm">••••••••••••••••</p>
                 </div>
-                <div className="space-y-2">
-                  <h3 className="font-medium">Password</h3>
-                  <p className="text-sm text-muted-foreground">••••••••••••••••</p>
-                </div>
+              </div>
+              
+              <div className="flex mt-4">
+                <Button 
+                  onClick={() => window.location.reload()} 
+                  variant="outline" 
+                  size="sm"
+                  className="mr-2"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh Connection
+                </Button>
               </div>
             </div>
           </CardContent>
-          <CardFooter>
-            {isStatusLoading ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Checking database status...</span>
-              </div>
-            ) : dbExists ? (
-              <Alert variant="success" className="border-green-200 bg-green-50 text-green-800">
-                <CheckCircle className="h-4 w-4" />
-                <AlertTitle>Database is set up and connected</AlertTitle>
-                <AlertDescription>
-                  The database schema exists and is accessible.
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Alert variant="destructive">
-                <XCircle className="h-4 w-4" />
-                <AlertTitle>Database setup required</AlertTitle>
-                <AlertDescription>
-                  The database schema does not exist or is not accessible.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardFooter>
         </Card>
         
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs defaultValue="setup">
           <TabsList className="mb-4">
-            <TabsTrigger value="status">
-              <Database className="h-4 w-4 mr-2" />
-              Status & Setup
+            <TabsTrigger value="setup">
+              <Database className="h-4 w-4 mr-1" />
+              Database Setup
             </TabsTrigger>
-            <TabsTrigger value="schema">
-              <FileText className="h-4 w-4 mr-2" />
-              Schema SQL
+            <TabsTrigger value="mockdata">
+              <Table className="h-4 w-4 mr-1" />
+              Mock Data
             </TabsTrigger>
-            <TabsTrigger value="data">
-              <FileText className="h-4 w-4 mr-2" />
-              Mock Data SQL
+            <TabsTrigger value="scripts">
+              <FileText className="h-4 w-4 mr-1" />
+              SQL Scripts
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="status" className="space-y-4">
+          <TabsContent value="setup">
             <Card>
-              <CardHeader>
-                <CardTitle>Database Status</CardTitle>
-                <CardDescription>
-                  Check the status of your database and set up the required schema
-                </CardDescription>
+              <CardHeader className="pb-3">
+                <CardTitle>Initialize Database</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertTitle>Important Note</AlertTitle>
+              <CardContent>
+                <p className="text-sm mb-4">
+                  Run the setup script to create the necessary database tables for the HR application.
+                  This will create tables for employees, departments, performance reviews, payroll, and other HR data.
+                </p>
+                
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4 mr-2" />
+                  <AlertTitle>Before you begin</AlertTitle>
                   <AlertDescription>
-                    Setting up the database will create all required tables and insert initial data.
-                    This operation can be safely run on a new database, but may cause data loss on an existing database.
+                    Make sure your database connection is working properly. Running this script will create
+                    new tables if they don't exist, but will not delete existing data.
                   </AlertDescription>
                 </Alert>
                 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between border p-4 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <Database className="h-5 w-5" />
-                      <span>Database Connection</span>
+                <Button 
+                  onClick={handleRunSetupScript} 
+                  disabled={connectionStatus !== 'success' || isRunningScript}
+                >
+                  {isRunningScript ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Running Script...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Run Setup Script
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+            
+            {tables.length > 0 && (
+              <Card className="mt-4">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center">
+                    <Table className="mr-2 h-5 w-5" />
+                    Database Tables
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {tables.map((table) => (
+                      <div key={table.name} className="flex items-center justify-between p-3 bg-muted/40 rounded-md">
+                        <div className="flex items-center">
+                          <Table className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span className="font-mono text-sm">{table.name}</span>
+                        </div>
+                        <Badge variant="outline">{table.rowCount} rows</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="mockdata">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Insert Mock Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm mb-4">
+                  Populate the database with sample data for testing and development purposes.
+                  This includes employees, departments, performance reviews, payroll information, and more.
+                </p>
+                
+                <Alert className="mb-4">
+                  <Info className="h-4 w-4 mr-2" />
+                  <AlertTitle>Note</AlertTitle>
+                  <AlertDescription>
+                    This will add mock data to your database. It's designed to work with the
+                    tables created by the setup script. Make sure you've run the setup script first.
+                  </AlertDescription>
+                </Alert>
+                
+                <Button 
+                  onClick={handleRunMockDataScript} 
+                  disabled={connectionStatus !== 'success' || isRunningScript}
+                >
+                  {isRunningScript ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Inserting Data...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4 mr-2" />
+                      Insert Mock Data
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="scripts">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>SQL Scripts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm mb-4">
+                  View the SQL scripts used to set up the database and insert mock data.
+                </p>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Setup Database Script</h3>
+                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                      <pre className="text-xs">{`-- This is a simplified representation of the setup script
+CREATE TABLE IF NOT EXISTS employees (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  position VARCHAR(100),
+  department VARCHAR(100),
+  email VARCHAR(255),
+  phone VARCHAR(20),
+  location VARCHAR(100),
+  avatar VARCHAR(255),
+  hireDate DATE,
+  status ENUM('active', 'inactive', 'onleave') DEFAULT 'active',
+  manager VARCHAR(100),
+  salary DECIMAL(10, 2),
+  bio TEXT
+);
+
+CREATE TABLE IF NOT EXISTS departments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  managerId INT,
+  FOREIGN KEY (managerId) REFERENCES employees(id)
+);
+
+-- More tables for performance, payroll, etc. would be defined here
+`}</pre>
                     </div>
-                    {isStatusLoading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Checking...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        {dbExists ? (
-                          <>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span className="text-green-600">Connected</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-red-600">Not Connected</span>
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
                   
-                  <div className="flex items-center justify-between border p-4 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      <span>Database Schema</span>
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Mock Data Script</h3>
+                    <div className="bg-muted p-4 rounded-md overflow-auto max-h-96">
+                      <pre className="text-xs">{`-- This is a simplified representation of the mock data script
+INSERT INTO employees (name, position, department, email, phone, location, avatar, hireDate, status, manager, salary, bio)
+VALUES
+  ('John Doe', 'Senior Software Engineer', 'Engineering', 'john.doe@company.com', '(555) 123-4567', 'San Francisco, CA', 'https://randomuser.me/api/portraits/men/32.jpg', '2019-03-15', 'active', 'Jane Smith', 120000, 'John is a senior developer with expertise in React and Node.js.'),
+  ('Jane Smith', 'Product Manager', 'Product', 'jane.smith@company.com', '(555) 987-6543', 'New York, NY', 'https://randomuser.me/api/portraits/women/44.jpg', '2018-07-10', 'active', 'Robert Johnson', 135000, 'Jane oversees product development and works closely with engineering and design teams.'),
+  -- More employee records would be inserted here
+
+INSERT INTO departments (name, description, managerId)
+VALUES
+  ('Engineering', 'Software development and infrastructure', 1),
+  ('Product', 'Product management and design', 2),
+  -- More department records would be inserted here
+`}</pre>
                     </div>
-                    {isStatusLoading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Checking...</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        {dbExists ? (
-                          <>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span className="text-green-600">Exists</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-red-600">Not Found</span>
-                          </>
-                        )}
-                      </div>
-                    )}
                   </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  onClick={handleSetupClick} 
-                  disabled={isSettingUp || isStatusLoading}
-                  className="w-full md:w-auto"
-                >
-                  {isSettingUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isSettingUp ? 'Setting Up Database...' : 'Set Up Database'}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="schema">
-            <Card>
-              <CardHeader>
-                <CardTitle>Database Schema SQL</CardTitle>
-                <CardDescription>
-                  SQL script that creates all the required tables
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-slate-950 text-slate-50 p-4 rounded-md overflow-auto max-h-[600px]">
-                  <pre className="text-xs md:text-sm">
-                    <code>{setupDatabaseSQL}</code>
-                  </pre>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="data">
-            <Card>
-              <CardHeader>
-                <CardTitle>Mock Data SQL</CardTitle>
-                <CardDescription>
-                  SQL script that inserts initial mock data into the tables
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-slate-950 text-slate-50 p-4 rounded-md overflow-auto max-h-[600px]">
-                  <pre className="text-xs md:text-sm">
-                    <code>{insertMockDataSQL}</code>
-                  </pre>
                 </div>
               </CardContent>
             </Card>

@@ -15,24 +15,27 @@ import {
   Activity,
   Database,
 } from 'lucide-react';
-import { useMobile } from '@/hooks/use-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen = false }) => {
   const { pathname } = useLocation();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
+  
+  // Use isOpen prop if provided, otherwise use internal collapsed state
+  const effectiveCollapsed = isOpen === undefined ? collapsed : !isOpen;
 
   return (
     <div
       className={cn(
         'border-r bg-background transition-all duration-300 ease-in-out',
         {
-          'w-64': !collapsed,
-          'w-[70px]': collapsed,
+          'w-64': !effectiveCollapsed,
+          'w-[70px]': effectiveCollapsed,
           'fixed inset-y-[64px] left-0 z-30': isMobile,
           'relative': !isMobile,
-          'translate-x-0': !collapsed,
-          '-translate-x-full': isMobile && collapsed,
+          'translate-x-0': !effectiveCollapsed,
+          '-translate-x-full': isMobile && effectiveCollapsed,
         }
       )}
     >
@@ -51,7 +54,7 @@ const Sidebar = () => {
               }
             >
               <Gauge className="h-4 w-4" />
-              {!collapsed && <span>Dashboard</span>}
+              {!effectiveCollapsed && <span>Dashboard</span>}
             </NavLink>
             <NavLink
               to="/employees"
@@ -63,7 +66,7 @@ const Sidebar = () => {
               }
             >
               <Users className="h-4 w-4" />
-              {!collapsed && <span>Employees</span>}
+              {!effectiveCollapsed && <span>Employees</span>}
             </NavLink>
             <NavLink
               to="/payroll"
@@ -75,7 +78,7 @@ const Sidebar = () => {
               }
             >
               <CreditCard className="h-4 w-4" />
-              {!collapsed && <span>Payroll & Benefits</span>}
+              {!effectiveCollapsed && <span>Payroll & Benefits</span>}
             </NavLink>
             <NavLink
               to="/performance"
@@ -87,7 +90,7 @@ const Sidebar = () => {
               }
             >
               <Activity className="h-4 w-4" />
-              {!collapsed && <span>Performance</span>}
+              {!effectiveCollapsed && <span>Performance</span>}
             </NavLink>
             <NavLink
               to="/calendar"
@@ -99,7 +102,7 @@ const Sidebar = () => {
               }
             >
               <Calendar className="h-4 w-4" />
-              {!collapsed && <span>Calendar</span>}
+              {!effectiveCollapsed && <span>Calendar</span>}
             </NavLink>
             <NavLink
               to="/documents"
@@ -111,7 +114,7 @@ const Sidebar = () => {
               }
             >
               <FileText className="h-4 w-4" />
-              {!collapsed && <span>Documents</span>}
+              {!effectiveCollapsed && <span>Documents</span>}
             </NavLink>
             <NavLink
               to="/reports"
@@ -123,7 +126,7 @@ const Sidebar = () => {
               }
             >
               <BarChart2 className="h-4 w-4" />
-              {!collapsed && <span>Reports</span>}
+              {!effectiveCollapsed && <span>Reports</span>}
             </NavLink>
             <NavLink
               to="/database-setup"
@@ -135,7 +138,7 @@ const Sidebar = () => {
               }
             >
               <Database className="h-4 w-4" />
-              {!collapsed && <span>Database Setup</span>}
+              {!effectiveCollapsed && <span>Database Setup</span>}
             </NavLink>
           </nav>
         </ScrollArea>
@@ -150,7 +153,7 @@ const Sidebar = () => {
             }
           >
             <Settings className="h-4 w-4" />
-            {!collapsed && <span>Settings</span>}
+            {!effectiveCollapsed && <span>Settings</span>}
           </NavLink>
           <Button
             variant="outline"
@@ -158,7 +161,7 @@ const Sidebar = () => {
             className="mt-2 w-full justify-center"
             onClick={() => setCollapsed(!collapsed)}
           >
-            {collapsed ? '→' : '←'}
+            {effectiveCollapsed ? '→' : '←'}
           </Button>
         </div>
       </div>

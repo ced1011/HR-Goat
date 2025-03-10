@@ -7,9 +7,16 @@ import Sidebar from './Sidebar';
 interface PageContainerProps {
   children: React.ReactNode;
   className?: string;
+  title?: string;
+  description?: string;
 }
 
-const PageContainer: React.FC<PageContainerProps> = ({ children, className }) => {
+const PageContainer: React.FC<PageContainerProps> = ({ 
+  children, 
+  className,
+  title,
+  description 
+}) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
@@ -52,6 +59,12 @@ const PageContainer: React.FC<PageContainerProps> = ({ children, className }) =>
           "animate-in",
           className
         )}>
+          {title && (
+            <div className="mb-6">
+              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+              {description && <p className="text-hr-text-secondary">{description}</p>}
+            </div>
+          )}
           {isMounted ? children : null}
         </main>
       </div>

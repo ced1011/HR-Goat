@@ -14,8 +14,7 @@ import NotFound from './pages/NotFound';
 import DatabaseSetup from './pages/DatabaseSetup';
 import Unauthorized from './pages/Unauthorized';
 
-import Header from './components/layout/Header';
-import Sidebar from './components/layout/Sidebar';
+import PageContainer from './components/layout/PageContainer';
 import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -48,23 +47,15 @@ function App() {
                 path="/*"
                 element={
                   <ProtectedRoute>
-                    <div className="flex h-screen flex-col">
-                      <Header />
-                      <div className="flex flex-1 overflow-hidden">
-                        <Sidebar />
-                        <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6">
-                          <Routes>
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/employees" element={<Employees />} />
-                            <Route path="/employees/:id" element={<Profile />} />
-                            <Route path="/payroll" element={<Payroll />} />
-                            <Route path="/performance" element={<Performance />} />
-                            <Route path="/database-setup" element={<DatabaseSetup />} />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </main>
-                      </div>
-                    </div>
+                    <Routes>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/employees" element={<Employees />} />
+                      <Route path="/employees/:id" element={<Profile />} />
+                      <Route path="/payroll" element={<Payroll />} />
+                      <Route path="/performance" element={<Performance />} />
+                      <Route path="/database-setup" element={<DatabaseSetup />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
                   </ProtectedRoute>
                 }
               />

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import PageContainer from '@/components/layout/PageContainer';
@@ -22,7 +21,8 @@ import {
   Pencil,
   Clipboard,
   PlusCircle,
-  LineChart
+  LineChart,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,8 +42,6 @@ const PerformancePage = () => {
         let employeeId: number;
         
         if (!id) {
-          // If no ID is provided, we're viewing the current user's profile
-          // For demo purposes, we'll just use the first employee
           const allEmployees = await apiService.getEmployees();
           if (allEmployees.error) throw new Error(allEmployees.error);
           
@@ -57,7 +55,6 @@ const PerformancePage = () => {
           employeeId = response.data.id;
         }
         
-        // Fetch performance data
         const [reviewsRes, goalsRes, skillsRes] = await Promise.all([
           performanceApiService.getEmployeeReviews(employeeId),
           performanceApiService.getEmployeeGoals(employeeId),
@@ -88,13 +85,12 @@ const PerformancePage = () => {
     try {
       const response = await performanceApiService.updateGoal(goalId, {
         progress: newProgress,
-        currentValue: newProgress, // Simplified for demo
+        currentValue: newProgress,
         status: newProgress >= 100 ? 'completed' : 'inprogress'
       });
       
       if (response.error) throw new Error(response.error);
       
-      // Update local state
       setGoals(goals.map(goal => 
         goal.id === goalId ? { ...goal, ...response.data } : goal
       ));
@@ -267,7 +263,7 @@ const PerformancePage = () => {
                                 size="sm"
                                 icon={<Pencil className="h-3 w-3" />}
                                 onClick={() => toast.info('Edit Goal', { description: 'This would open the edit goal dialog' })}
-                              />
+                              ></Button>
                             </div>
                           </div>
                         </div>
@@ -526,3 +522,4 @@ const PerformancePage = () => {
 };
 
 export default PerformancePage;
+
