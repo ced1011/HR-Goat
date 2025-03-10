@@ -1,197 +1,140 @@
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
-const dotenv = require('dotenv');
-
-// Load environment variables
-dotenv.config();
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Database configuration
-const DB_CONFIG = {
-  host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
-  user: 'admin',
-  password: 'OLLI4RVKjgWdHVfc52b6',
-  database: 'hrportal'
-};
-
-// Create connection pool
-const pool = mysql.createPool({
-  host: DB_CONFIG.host,
-  user: DB_CONFIG.user,
-  password: DB_CONFIG.password,
-  database: DB_CONFIG.database,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Test connection endpoint
+// Database configuration
+const dbConfig = {
+  host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
+  user: 'admin',
+  password: 'OLLI4RVKjgWdHVfc52b6',
+  database: 'hrportal',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
+
+// Create a pool for database connections
+const pool = mysql.createPool(dbConfig);
+
+// Test database connection
 app.get('/api/test-connection', async (req, res) => {
   try {
+    // Attempt to get a connection from the pool
     const connection = await pool.getConnection();
+    console.log('Database connection successful');
+    
+    // Release the connection back to the pool
     connection.release();
-    res.json({ success: true, message: 'Successfully connected to database' });
+    
+    res.json({ success: true, message: 'Database connection successful' });
   } catch (error) {
-    console.error('Database connection test failed:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to connect to database: ${error.message}` 
-    });
+    console.error('Database connection failed:', error.message);
+    res.status(500).json({ success: false, message: `Connection failed: ${error.message}` });
   }
 });
 
-// Run setup script endpoint
+// Run database setup script
 app.post('/api/run-setup-script', async (req, res) => {
   try {
+    // Read the setup SQL file
+    const setupSql = fs.readFileSync(path.join(__dirname, '../src/lib/sql/setup-database.sql'), 'utf8');
+    
+    // Split the SQL file by semicolons to get individual statements
+    const statements = setupSql.split(';').filter(statement => statement.trim() !== '');
+    
+    // Get a connection from the pool
     const connection = await pool.getConnection();
     
-    try {
-      // Setup script
-      const setupScript = `
-        CREATE TABLE IF NOT EXISTS employees (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          position VARCHAR(100),
-          department VARCHAR(100),
-          email VARCHAR(255),
-          phone VARCHAR(20),
-          location VARCHAR(100),
-          avatar VARCHAR(255),
-          hireDate DATE,
-          status ENUM('active', 'inactive', 'onleave') DEFAULT 'active',
-          manager VARCHAR(100),
-          salary DECIMAL(10, 2),
-          bio TEXT
-        );
-        
-        CREATE TABLE IF NOT EXISTS departments (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          description TEXT,
-          managerId INT,
-          FOREIGN KEY (managerId) REFERENCES employees(id)
-        );
-      `;
-      
-      // Split by semicolons and execute each statement
-      const statements = setupScript
-        .split(';')
-        .map(statement => statement.trim())
-        .filter(statement => statement.length > 0);
-      
-      for (const statement of statements) {
-        await connection.execute(statement);
+    // Execute each statement
+    for (const statement of statements) {
+      if (statement.trim()) {
+        await connection.query(statement);
       }
-      
-      res.json({ 
-        success: true, 
-        message: 'Database setup script executed successfully' 
-      });
-    } finally {
-      connection.release();
     }
+    
+    // Release the connection back to the pool
+    connection.release();
+    
+    res.json({ success: true, message: 'Database setup completed successfully' });
   } catch (error) {
-    console.error('Failed to run setup script:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to run setup script: ${error.message}` 
-    });
+    console.error('Database setup failed:', error.message);
+    res.status(500).json({ success: false, message: `Setup failed: ${error.message}` });
   }
 });
 
-// Run mock data script endpoint
+// Run mock data script
 app.post('/api/run-mock-data-script', async (req, res) => {
   try {
+    // Read the mock data SQL file
+    const mockDataSql = fs.readFileSync(path.join(__dirname, '../src/lib/sql/insert-mock-data.sql'), 'utf8');
+    
+    // Split the SQL file by semicolons to get individual statements
+    const statements = mockDataSql.split(';').filter(statement => statement.trim() !== '');
+    
+    // Get a connection from the pool
     const connection = await pool.getConnection();
     
-    try {
-      // Mock data script
-      const mockDataScript = `
-        INSERT IGNORE INTO employees (id, name, position, department, email, phone, location, avatar, hireDate, status, manager, salary, bio)
-        VALUES
-          (1, 'John Doe', 'Senior Software Engineer', 'Engineering', 'john.doe@company.com', '(555) 123-4567', 'San Francisco, CA', 'https://randomuser.me/api/portraits/men/32.jpg', '2019-03-15', 'active', 'Jane Smith', 120000, 'John is a senior developer with expertise in React and Node.js.'),
-          (2, 'Jane Smith', 'Product Manager', 'Product', 'jane.smith@company.com', '(555) 987-6543', 'New York, NY', 'https://randomuser.me/api/portraits/women/44.jpg', '2018-07-10', 'active', 'Robert Johnson', 135000, 'Jane oversees product development and works closely with engineering and design teams.'),
-          (3, 'Michael Chen', 'UX Designer', 'Design', 'michael.chen@company.com', '(555) 456-7890', 'Austin, TX', 'https://randomuser.me/api/portraits/men/67.jpg', '2020-01-20', 'active', 'Sarah Williams', 95000, 'Michael is passionate about creating intuitive user experiences and has a background in both graphic design and user research.');
-          
-        INSERT IGNORE INTO departments (id, name, description, managerId)
-        VALUES
-          (1, 'Engineering', 'Software development and infrastructure', 1),
-          (2, 'Product', 'Product management and design', 2);
-      `;
-      
-      // Split by semicolons and execute each statement
-      const statements = mockDataScript
-        .split(';')
-        .map(statement => statement.trim())
-        .filter(statement => statement.length > 0);
-      
-      for (const statement of statements) {
-        await connection.execute(statement);
+    // Execute each statement
+    for (const statement of statements) {
+      if (statement.trim()) {
+        await connection.query(statement);
       }
-      
-      res.json({ 
-        success: true, 
-        message: 'Mock data inserted successfully' 
-      });
-    } finally {
-      connection.release();
     }
+    
+    // Release the connection back to the pool
+    connection.release();
+    
+    res.json({ success: true, message: 'Mock data inserted successfully' });
   } catch (error) {
-    console.error('Failed to run mock data script:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to run mock data script: ${error.message}` 
-    });
+    console.error('Mock data insertion failed:', error.message);
+    res.status(500).json({ success: false, message: `Mock data insertion failed: ${error.message}` });
   }
 });
 
-// Get database stats endpoint
+// Get database stats
 app.get('/api/database-stats', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
-    try {
-      // Get tables
-      const [tables] = await connection.query('SHOW TABLES');
-      const tableStats = [];
-      
-      // Parse the tables and get row counts
-      for (const table of tables) {
-        const tableName = Object.values(table)[0];
-        const [rows] = await connection.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-        tableStats.push({
-          name: tableName,
-          rowCount: rows[0].count
-        });
-      }
-      
-      res.json({ 
-        success: true, 
-        tables: tableStats 
+    // Get list of tables
+    const [tables] = await connection.query(`
+      SELECT table_name AS name
+      FROM information_schema.tables
+      WHERE table_schema = ?
+    `, [dbConfig.database]);
+    
+    // Get row count for each table
+    const tablesWithCount = [];
+    
+    for (const table of tables) {
+      const [rows] = await connection.query(`SELECT COUNT(*) AS count FROM ${table.name}`);
+      tablesWithCount.push({
+        name: table.name,
+        rowCount: rows[0].count
       });
-    } finally {
-      connection.release();
     }
+    
+    connection.release();
+    
+    res.json({ success: true, tables: tablesWithCount });
   } catch (error) {
-    console.error('Failed to get database stats:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to get database stats: ${error.message}`,
-      tables: []
-    });
+    console.error('Failed to get database stats:', error.message);
+    res.status(500).json({ success: false, message: `Failed to get database stats: ${error.message}` });
   }
 });
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
-

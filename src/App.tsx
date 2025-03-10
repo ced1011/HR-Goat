@@ -14,7 +14,6 @@ import NotFound from './pages/NotFound';
 import DatabaseSetup from './pages/DatabaseSetup';
 import Unauthorized from './pages/Unauthorized';
 
-import PageContainer from './components/layout/PageContainer';
 import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -39,7 +38,7 @@ function App() {
           <AuthProvider>
             <Routes>
               {/* Public routes */}
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<Index />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               
               {/* Protected routes with layout */}
