@@ -1,4 +1,4 @@
--- Database Schema Setup for HR Portal
+-- Database Schema Setup for HRGoat
 
 -- Create Employees table
 CREATE TABLE IF NOT EXISTS employees (
@@ -126,3 +126,57 @@ CREATE TABLE IF NOT EXISTS skill_assessments (
   FOREIGN KEY (employee_id) REFERENCES employees(id),
   FOREIGN KEY (assessor_id) REFERENCES employees(id)
 );
+
+-- Create Bank Accounts table
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  employee_id INT NOT NULL,
+  account_type ENUM('checking', 'savings', 'investment') NOT NULL,
+  bank_name VARCHAR(100) NOT NULL,
+  account_number VARCHAR(20) NOT NULL,
+  routing_number VARCHAR(20) NOT NULL,
+  is_primary BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+-- Insert mock data for bank accounts
+INSERT INTO bank_accounts (employee_id, account_type, bank_name, account_number, routing_number, is_primary)
+VALUES 
+  (1, 'checking', 'Chase Bank', '****4567', '****1234', TRUE),
+  (1, 'savings', 'Bank of America', '****7890', '****5678', FALSE),
+  (2, 'checking', 'Wells Fargo', '****2345', '****9012', TRUE),
+  (3, 'checking', 'Citibank', '****6789', '****3456', TRUE),
+  (3, 'investment', 'Fidelity', '****1234', '****7890', FALSE),
+  (4, 'checking', 'TD Bank', '****5678', '****2345', TRUE),
+  (5, 'checking', 'PNC Bank', '****9012', '****6789', TRUE);
+
+-- Create Calendar Events table
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  start_date DATETIME NOT NULL,
+  end_date DATETIME NOT NULL,
+  location VARCHAR(255),
+  event_type ENUM('meeting', 'holiday', 'training', 'conference', 'other') NOT NULL DEFAULT 'other',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+-- Insert mock data for calendar events
+INSERT INTO calendar_events (title, description, start_date, end_date, location, event_type, created_by)
+VALUES 
+  ('Quarterly Review Meeting', 'Review of Q2 performance and goals', '2023-07-15 10:00:00', '2023-07-15 12:00:00', 'Conference Room A', 'meeting', 1),
+  ('Company Picnic', 'Annual company picnic at Central Park', '2023-07-22 12:00:00', '2023-07-22 16:00:00', 'Central Park', 'other', 2),
+  ('New Product Training', 'Training session for the new product launch', '2023-07-18 09:00:00', '2023-07-19 17:00:00', 'Training Center', 'training', 4),
+  ('Independence Day', 'Office closed for Independence Day', '2023-07-04 00:00:00', '2023-07-04 23:59:59', 'N/A', 'holiday', 1),
+  ('Tech Conference', 'Annual technology conference', '2023-08-10 09:00:00', '2023-08-12 18:00:00', 'Convention Center', 'conference', 3),
+  ('Team Building Workshop', 'Workshop focused on improving team collaboration', '2023-07-28 13:00:00', '2023-07-28 17:00:00', 'Recreation Room', 'training', 2),
+  ('Board Meeting', 'Quarterly board meeting', '2023-07-31 14:00:00', '2023-07-31 16:00:00', 'Executive Boardroom', 'meeting', 4),
+  ('Labor Day', 'Office closed for Labor Day', '2023-09-04 00:00:00', '2023-09-04 23:59:59', 'N/A', 'holiday', 1),
+  ('Annual Performance Reviews', 'Annual employee performance review period begins', '2023-10-01 09:00:00', '2023-10-15 17:00:00', 'Various Locations', 'other', 2),
+  ('Holiday Party', 'Annual company holiday celebration', '2023-12-15 18:00:00', '2023-12-15 22:00:00', 'Grand Hotel Ballroom', 'other', 4);

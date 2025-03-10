@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageContainer from '@/components/layout/PageContainer';
@@ -7,6 +6,8 @@ import Button from '@/components/ui-custom/Button';
 import { FadeIn, SlideIn } from '@/components/ui-custom/Animations';
 import { apiService, Employee } from '@/lib/api';
 import { toast } from 'sonner';
+import BankAccountList from '@/components/bank-accounts/BankAccountList';
+import EditProfileForm from '@/components/profile/EditProfileForm';
 import { 
   Mail, 
   Phone, 
@@ -29,6 +30,7 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -96,6 +98,10 @@ const ProfilePage = () => {
     );
   }
   
+  const handleProfileUpdate = (updatedEmployee: Employee) => {
+    setEmployee(updatedEmployee);
+  };
+  
   return (
     <PageContainer>
       <div className="space-y-1 mb-6">
@@ -161,6 +167,7 @@ const ProfilePage = () => {
                 size="sm"
                 icon={<Edit className="h-4 w-4" />}
                 className="mr-2"
+                onClick={() => setIsEditModalOpen(true)}
               >
                 Edit Profile
               </Button>
@@ -374,6 +381,21 @@ const ProfilePage = () => {
           </CardContent>
         </Card>
       </SlideIn>
+      
+      <SlideIn direction="up" delay={700}>
+        <div className="mt-6">
+          <BankAccountList employeeId={employee.id} />
+        </div>
+      </SlideIn>
+      
+      {employee && (
+        <EditProfileForm
+          employee={employee}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={handleProfileUpdate}
+        />
+      )}
     </PageContainer>
   );
 };

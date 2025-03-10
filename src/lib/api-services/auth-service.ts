@@ -1,54 +1,31 @@
-
-import { db } from '../database';
 import { ApiResponse, User, LoginCredentials } from '../api-models';
 import { toast } from 'sonner';
 
 class AuthService {
   private storageKey = 'hr_portal_auth';
+  private baseUrl = '/api';
   
   async login(credentials: LoginCredentials): Promise<ApiResponse<User | null>> {
     try {
-      const { username, password } = credentials;
+      const response = await fetch(`${this.baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(credentials)
+      });
       
-      // Query the database for the user
-      const result = await db.query<any[]>(
-        'SELECT id, username, email, role, employee_id FROM users WHERE username = ? LIMIT 1',
-        [username]
-      );
+      const data = await response.json();
       
-      if (result.error || !result.data || result.data.length === 0) {
+      if (!response.ok) {
         return {
           data: null,
-          error: 'Invalid username or password'
+          error: data.message || 'Invalid username or password'
         };
       }
-      
-      const user = result.data[0];
-      
-      // In a real application, you would verify the password hash here
-      // For demo purposes we'll accept the password as-is (never do this in production!)
-      // This is just for demonstration purposes
-      if (password !== 'password123') {
-        return {
-          data: null,
-          error: 'Invalid username or password'
-        };
-      }
-      
-      // Update last login timestamp
-      await db.query(
-        'UPDATE users SET last_login = NOW() WHERE id = ?',
-        [user.id]
-      );
       
       // Format user data
-      const userData: User = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        employeeId: user.employee_id
-      };
+      const userData: User = data.user;
       
       // Store in localStorage for persistence
       this.saveToStorage(userData);

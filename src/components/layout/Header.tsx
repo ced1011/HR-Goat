@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Bell, Menu, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -31,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, isSidebarOpen }) => {
           
           <div onClick={() => navigate('/')} className="cursor-pointer select-none">
             <h1 className="text-xl font-medium tracking-tight">
-              <span className="text-hr-blue">HR</span> Symphony
+              <span className="text-hr-blue">HR</span>Goat
             </h1>
           </div>
         </div>

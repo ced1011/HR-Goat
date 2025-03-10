@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,6 +12,10 @@ import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 import DatabaseSetup from './pages/DatabaseSetup';
 import Unauthorized from './pages/Unauthorized';
+import Documents from './pages/Documents';
+import SystemTools from './pages/SystemTools';
+import Calendar from './pages/Calendar';
+import Reports from './pages/Reports';
 
 import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './contexts/AuthContext';
@@ -52,7 +55,11 @@ function App() {
                       <Route path="/employees/:id" element={<Profile />} />
                       <Route path="/payroll" element={<Payroll />} />
                       <Route path="/performance" element={<Performance />} />
+                      <Route path="/documents" element={<Documents />} />
+                      <Route path="/calendar" element={<Calendar />} />
+                      <Route path="/reports" element={<Reports />} />
                       <Route path="/database-setup" element={<DatabaseSetup />} />
+                      <Route path="/system-tools" element={<SystemTools />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </ProtectedRoute>

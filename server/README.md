@@ -1,7 +1,6 @@
+# HRGoat Backend Server
 
-# HR Portal Backend Server
-
-This is a Node.js Express server that acts as a backend for the HR Portal application. 
+This is a Node.js Express server that acts as a backend for the HRGoat application. 
 It handles the database operations and provides APIs for the frontend to communicate with the MySQL database.
 
 ## Setup

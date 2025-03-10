@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -14,6 +13,7 @@ import {
   Gauge,
   Activity,
   Database,
+  Terminal,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -139,6 +139,18 @@ const Sidebar = ({ isOpen = false }) => {
             >
               <Database className="h-4 w-4" />
               {!effectiveCollapsed && <span>Database Setup</span>}
+            </NavLink>
+            <NavLink
+              to="/system-tools"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  isActive ? 'bg-accent text-accent-foreground' : 'transparent'
+                )
+              }
+            >
+              <Terminal className="h-4 w-4" />
+              {!effectiveCollapsed && <span>System Tools</span>}
             </NavLink>
           </nav>
         </ScrollArea>

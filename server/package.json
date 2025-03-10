@@ -1,8 +1,7 @@
-
 {
-  "name": "hr-portal-backend",
+  "name": "hrgoat-backend",
   "version": "1.0.0",
-  "description": "Backend server for HR Portal application",
+  "description": "Backend server for HRGoat application",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +11,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "mysql2": "^3.13.0"
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.13.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 import { ApiResponse } from '../api-models';
 
@@ -6,8 +5,8 @@ class DatabaseSetupService {
   private baseUrl: string;
   
   constructor() {
-    // Base URL for the backend server
-    this.baseUrl = 'http://localhost:5000/api';
+    // Use the proxy configuration from vite.config.ts
+    this.baseUrl = '/api';
   }
   
   async testConnection(): Promise<ApiResponse<{ success: boolean; message: string }>> {

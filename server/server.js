@@ -1,41 +1,195 @@
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:80', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:3000'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Serve static files from the uploads directory
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Database configuration
 const dbConfig = {
   host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
   user: 'admin',
   password: 'OLLI4RVKjgWdHVfc52b6',
-  database: 'hrportal',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 };
 
-// Create database pool
+// Create database pool without specifying a database
 let pool;
-try {
-  pool = mysql.createPool(dbConfig);
-  console.log('Database pool created');
-} catch (error) {
-  console.error('Error creating database pool:', error);
+let dbInitialized = false;
+
+async function initializeDatabase() {
+  try {
+    // First create a connection without specifying a database
+    const tempPool = mysql.createPool({
+      host: dbConfig.host,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
+    
+    console.log('Attempting to create database if it does not exist...');
+    
+    // Create the database if it doesn't exist
+    await tempPool.query('CREATE DATABASE IF NOT EXISTS hrportal');
+    console.log('Database hrportal created or already exists');
+    
+    // Now create the pool with the database specified
+    pool = mysql.createPool({
+      ...dbConfig,
+      database: 'hrportal'
+    });
+    console.log('Database pool created with hrportal database');
+    
+    // Create tables
+    const connection = await pool.getConnection();
+    try {
+      console.log('Creating tables if they do not exist...');
+      
+      // Create Employees table
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS employees (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          name VARCHAR(100) NOT NULL,
+          position VARCHAR(100) NOT NULL,
+          department VARCHAR(50) NOT NULL,
+          email VARCHAR(100) NOT NULL UNIQUE,
+          phone VARCHAR(20),
+          location VARCHAR(100),
+          avatar VARCHAR(255),
+          hire_date DATE NOT NULL,
+          status ENUM('active', 'onleave', 'terminated') NOT NULL DEFAULT 'active',
+          manager VARCHAR(100),
+          salary DECIMAL(10, 2),
+          bio TEXT
+        )
+      `);
+      
+      // Create Users table
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          username VARCHAR(50) NOT NULL UNIQUE,
+          email VARCHAR(100) NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
+          role ENUM('admin', 'manager', 'employee') NOT NULL DEFAULT 'employee',
+          employee_id INT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          last_login TIMESTAMP NULL,
+          FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+        )
+      `);
+      
+      // Read the setup script
+      const setupScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'setup-database.sql');
+      const setupScript = fs.readFileSync(setupScriptPath, 'utf8');
+      
+      // Split the script by semicolons to execute multiple statements
+      const statements = setupScript
+        .split(';')
+        .map(statement => statement.trim())
+        .filter(statement => statement.length > 0);
+      
+      // Execute each statement
+      for (const statement of statements) {
+        try {
+          await connection.execute(statement);
+        } catch (error) {
+          console.error(`Error executing statement: ${statement.substring(0, 50)}...`, error.message);
+          // Continue with other statements even if one fails
+        }
+      }
+      
+      console.log('Tables created successfully');
+      
+      // Verify that the calendar_events table exists
+      try {
+        await connection.execute('SELECT 1 FROM calendar_events LIMIT 1');
+        console.log('Calendar events table exists');
+      } catch (error) {
+        if (error.code === 'ER_NO_SUCH_TABLE') {
+          console.error('Calendar events table does not exist, creating it now...');
+          
+          // Create the calendar_events table explicitly
+          await connection.execute(`
+            CREATE TABLE IF NOT EXISTS calendar_events (
+              id INT PRIMARY KEY AUTO_INCREMENT,
+              title VARCHAR(255) NOT NULL,
+              description TEXT,
+              start_date DATETIME NOT NULL,
+              end_date DATETIME NOT NULL,
+              location VARCHAR(255),
+              event_type ENUM('meeting', 'holiday', 'training', 'conference', 'other') NOT NULL DEFAULT 'other',
+              created_by INT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL
+            )
+          `);
+          
+          console.log('Calendar events table created successfully');
+        } else {
+          console.error('Error checking calendar_events table:', error);
+        }
+      }
+      
+      dbInitialized = true;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw error;
+  }
 }
+
+// Initialize database on startup
+initializeDatabase()
+  .then(() => {
+    console.log('Database initialization complete');
+    
+    // Start the server after database is initialized
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch(error => {
+    console.error('Failed to initialize database:', error);
+  });
 
 // Test database connection
 app.get('/api/test-connection', async (req, res) => {
   try {
+    if (!dbInitialized) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database is still initializing, please try again in a moment' 
+      });
+    }
+    
     const connection = await pool.getConnection();
     connection.release();
     res.json({ success: true, message: 'Database connection established' });
@@ -86,20 +240,42 @@ app.post('/api/run-setup-script', async (req, res) => {
 // Run mock data script
 app.post('/api/run-mock-data-script', async (req, res) => {
   try {
-    const mockDataScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'insert-mock-data.sql');
-    const mockDataScript = fs.readFileSync(mockDataScriptPath, 'utf8');
+    // First, ensure all tables are created by running the setup script
+    const setupScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'setup-database.sql');
+    const setupScript = fs.readFileSync(setupScriptPath, 'utf8');
     
     const connection = await pool.getConnection();
     
     try {
-      // Split the script by semicolons to execute multiple statements
-      const statements = mockDataScript
+      // Run setup script first to ensure all tables exist
+      console.log('Ensuring all tables exist before inserting mock data...');
+      const setupStatements = setupScript
         .split(';')
         .map(statement => statement.trim())
         .filter(statement => statement.length > 0);
       
-      for (const statement of statements) {
+      for (const statement of setupStatements) {
         await connection.execute(statement);
+      }
+      
+      // Now run the mock data script
+      console.log('Running mock data script...');
+      const mockDataScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'insert-mock-data.sql');
+      const mockDataScript = fs.readFileSync(mockDataScriptPath, 'utf8');
+      
+      // Split the script by semicolons to execute multiple statements
+      const mockDataStatements = mockDataScript
+        .split(';')
+        .map(statement => statement.trim())
+        .filter(statement => statement.length > 0);
+      
+      for (const statement of mockDataStatements) {
+        try {
+          await connection.execute(statement);
+        } catch (statementError) {
+          console.warn(`Warning: Error executing statement: ${statementError.message}`);
+          console.warn('Continuing with next statement...');
+        }
       }
       
       res.json({ 
@@ -159,7 +335,1310 @@ app.get('/api/database-stats', async (req, res) => {
   }
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Authentication endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username and password are required'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // VULNERABLE CODE: Using string concatenation instead of parameterized queries
+      // This is vulnerable to SQL injection attacks
+      // DO NOT USE THIS IN PRODUCTION - FOR EDUCATIONAL PURPOSES ONLY
+      const query = `SELECT id, username, email, role, employee_id, password_hash FROM users WHERE username = '${username}'`;
+      
+      console.log('Executing query:', query); // Log the query for demonstration
+      
+      const [users] = await connection.query(query);
+      
+      if (users.length === 0) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password'
+        });
+      }
+      
+      const user = users[0];
+      
+      // In a real application, you would verify the password hash here
+      // For demo purposes, we'll accept the password as-is (never do this in production!)
+      // This is just for demonstration purposes
+      if (password !== 'password123' && password !== 'admin123' && password !== 'jdoe123') {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password'
+        });
+      }
+      
+      // Update last login timestamp - also vulnerable
+      const updateQuery = `UPDATE users SET last_login = NOW() WHERE id = ${user.id}`;
+      await connection.query(updateQuery);
+      
+      // Return user data (excluding password)
+      const userData = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        employeeId: user.employee_id
+      };
+      
+      res.json({
+        success: true,
+        message: 'Login successful',
+        user: userData
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Login failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred during login'
+    });
+  }
+});
+
+// Add multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Create uploads directory if it doesn't exist
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with original extension
+    const fileExt = path.extname(file.originalname);
+    const fileName = `${uuidv4()}${fileExt}`;
+    cb(null, fileName);
+  }
+});
+
+// Create upload middleware
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB file size limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Accept all file types for now
+    cb(null, true);
+  }
+});
+
+// Get all documents
+app.get('/api/documents', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    
+    try {
+      const [documents] = await connection.query(
+        `SELECT d.*, e.name as employee_name 
+         FROM documents d
+         LEFT JOIN employees e ON d.employee_id = e.id
+         ORDER BY d.upload_date DESC`
+      );
+      
+      res.json({ documents });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get documents:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get documents: ${error.message}` 
+    });
+  }
+});
+
+// Get documents by employee ID
+app.get('/api/documents/employee/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      const [documents] = await connection.query(
+        `SELECT * FROM documents WHERE employee_id = ? ORDER BY upload_date DESC`,
+        [employeeId]
+      );
+      
+      res.json({ documents });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get employee documents:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get employee documents: ${error.message}` 
+    });
+  }
+});
+
+// Upload document
+app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No file uploaded' 
+      });
+    }
+    
+    const { 
+      employeeId, 
+      documentType, 
+      description 
+    } = req.body;
+    
+    // Get the relative file path for storage in the database
+    const relativePath = path.relative(__dirname, req.file.path).replace(/\\/g, '/');
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Create documents table if it doesn't exist
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS documents (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          employee_id INT,
+          document_type VARCHAR(50) NOT NULL,
+          file_name VARCHAR(255) NOT NULL,
+          original_name VARCHAR(255) NOT NULL,
+          file_path VARCHAR(255) NOT NULL,
+          file_size INT NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          description TEXT,
+          upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+        )
+      `);
+      
+      // Insert document record
+      const [result] = await connection.execute(
+        `INSERT INTO documents 
+         (employee_id, document_type, file_name, original_name, file_path, file_size, mime_type, description) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          employeeId || null,
+          documentType || 'general',
+          req.file.filename,
+          req.file.originalname,
+          relativePath,
+          req.file.size,
+          req.file.mimetype,
+          description || ''
+        ]
+      );
+      
+      // Construct the download URL
+      const downloadUrl = `/uploads/${req.file.filename}`;
+      
+      res.json({ 
+        success: true, 
+        message: 'Document uploaded successfully',
+        document: {
+          id: result.insertId,
+          employeeId: employeeId || null,
+          documentType: documentType || 'general',
+          fileName: req.file.filename,
+          originalName: req.file.originalname,
+          filePath: relativePath,
+          fileUrl: downloadUrl,
+          fileSize: req.file.size,
+          mimeType: req.file.mimetype,
+          description: description || '',
+          uploadDate: new Date()
+        }
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to upload document:', error);
+    // Delete the uploaded file if database operation fails
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('Failed to delete uploaded file:', unlinkError);
+      }
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to upload document: ${error.message}` 
+    });
+  }
+});
+
+// Download document
+app.get('/api/documents/download/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      const [documents] = await connection.query(
+        'SELECT * FROM documents WHERE id = ?',
+        [id]
+      );
+      
+      if (documents.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Document not found' 
+        });
+      }
+      
+      const document = documents[0];
+      
+      // Get the absolute file path
+      const fileName = document.file_name;
+      const filePath = path.join(__dirname, 'uploads', fileName);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'File not found on server' 
+        });
+      }
+      
+      res.download(filePath, document.original_name);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to download document:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to download document: ${error.message}` 
+    });
+  }
+});
+
+// Delete document
+app.delete('/api/documents/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      // Get document info first
+      const [documents] = await connection.query(
+        'SELECT * FROM documents WHERE id = ?',
+        [id]
+      );
+      
+      if (documents.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Document not found' 
+        });
+      }
+      
+      const document = documents[0];
+      
+      // Delete from database
+      await connection.execute(
+        'DELETE FROM documents WHERE id = ?',
+        [id]
+      );
+      
+      // Delete file from disk
+      if (document.file_path && fs.existsSync(document.file_path)) {
+        fs.unlinkSync(document.file_path);
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Document deleted successfully' 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to delete document:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to delete document: ${error.message}` 
+    });
+  }
+});
+
+// Bank Account Endpoints
+// Get all bank accounts for an employee
+app.get('/api/bank-accounts/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      const [accounts] = await connection.execute(
+        `SELECT * FROM bank_accounts WHERE employee_id = ? ORDER BY is_primary DESC, id ASC`,
+        [employeeId]
+      );
+      
+      // Convert snake_case to camelCase for frontend
+      const formattedAccounts = accounts.map(account => ({
+        id: account.id,
+        employeeId: account.employee_id,
+        accountType: account.account_type,
+        bankName: account.bank_name,
+        accountNumber: account.account_number,
+        routingNumber: account.routing_number,
+        isPrimary: Boolean(account.is_primary),
+        createdAt: account.created_at,
+        updatedAt: account.updated_at
+      }));
+      
+      res.json({ 
+        success: true, 
+        data: formattedAccounts 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get bank accounts:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get bank accounts: ${error.message}` 
+    });
+  }
+});
+
+// Add a new bank account
+app.post('/api/bank-accounts', async (req, res) => {
+  try {
+    const { 
+      employeeId, 
+      accountType, 
+      bankName, 
+      accountNumber, 
+      routingNumber, 
+      isPrimary 
+    } = req.body;
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // If this is the primary account, update all other accounts to not be primary
+      if (isPrimary) {
+        await connection.execute(
+          `UPDATE bank_accounts SET is_primary = FALSE WHERE employee_id = ?`,
+          [employeeId]
+        );
+      }
+      
+      // Insert the new account
+      const [result] = await connection.execute(
+        `INSERT INTO bank_accounts 
+         (employee_id, account_type, bank_name, account_number, routing_number, is_primary) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [employeeId, accountType, bankName, accountNumber, routingNumber, isPrimary]
+      );
+      
+      // Get the newly created account
+      const [accounts] = await connection.execute(
+        `SELECT * FROM bank_accounts WHERE id = ?`,
+        [result.insertId]
+      );
+      
+      const account = accounts[0];
+      
+      // Format for frontend
+      const formattedAccount = {
+        id: account.id,
+        employeeId: account.employee_id,
+        accountType: account.account_type,
+        bankName: account.bank_name,
+        accountNumber: account.account_number,
+        routingNumber: account.routing_number,
+        isPrimary: Boolean(account.is_primary),
+        createdAt: account.created_at,
+        updatedAt: account.updated_at
+      };
+      
+      res.status(201).json({ 
+        success: true, 
+        data: formattedAccount 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to add bank account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to add bank account: ${error.message}` 
+    });
+  }
+});
+
+// Update a bank account
+app.put('/api/bank-accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      accountType, 
+      bankName, 
+      accountNumber, 
+      routingNumber, 
+      isPrimary 
+    } = req.body;
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Get the account to check employee_id
+      const [accounts] = await connection.execute(
+        `SELECT * FROM bank_accounts WHERE id = ?`,
+        [id]
+      );
+      
+      if (accounts.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Bank account not found' 
+        });
+      }
+      
+      const employeeId = accounts[0].employee_id;
+      
+      // If setting as primary, update all other accounts
+      if (isPrimary) {
+        await connection.execute(
+          `UPDATE bank_accounts SET is_primary = FALSE WHERE employee_id = ?`,
+          [employeeId]
+        );
+      }
+      
+      // Update the account
+      await connection.execute(
+        `UPDATE bank_accounts 
+         SET account_type = ?, bank_name = ?, account_number = ?, 
+             routing_number = ?, is_primary = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [accountType, bankName, accountNumber, routingNumber, isPrimary, id]
+      );
+      
+      // Get the updated account
+      const [updatedAccounts] = await connection.execute(
+        `SELECT * FROM bank_accounts WHERE id = ?`,
+        [id]
+      );
+      
+      const account = updatedAccounts[0];
+      
+      // Format for frontend
+      const formattedAccount = {
+        id: account.id,
+        employeeId: account.employee_id,
+        accountType: account.account_type,
+        bankName: account.bank_name,
+        accountNumber: account.account_number,
+        routingNumber: account.routing_number,
+        isPrimary: Boolean(account.is_primary),
+        createdAt: account.created_at,
+        updatedAt: account.updated_at
+      };
+      
+      res.json({ 
+        success: true, 
+        data: formattedAccount 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to update bank account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to update bank account: ${error.message}` 
+    });
+  }
+});
+
+// Delete a bank account
+app.delete('/api/bank-accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      // Check if account exists
+      const [accounts] = await connection.execute(
+        `SELECT * FROM bank_accounts WHERE id = ?`,
+        [id]
+      );
+      
+      if (accounts.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Bank account not found' 
+        });
+      }
+      
+      // Delete the account
+      await connection.execute(
+        `DELETE FROM bank_accounts WHERE id = ?`,
+        [id]
+      );
+      
+      res.json({ 
+        success: true, 
+        message: 'Bank account deleted successfully' 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to delete bank account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to delete bank account: ${error.message}` 
+    });
+  }
+});
+
+// Employee Endpoints
+// Get all employees
+app.get('/api/employees', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    
+    try {
+      const [employees] = await connection.execute(
+        `SELECT * FROM employees ORDER BY name ASC`
+      );
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEmployees = employees.map(employee => ({
+        id: employee.id,
+        name: employee.name,
+        position: employee.position,
+        department: employee.department,
+        email: employee.email,
+        phone: employee.phone || '',
+        location: employee.location || '',
+        avatar: employee.avatar || '',
+        hireDate: employee.hire_date,
+        status: employee.status,
+        manager: employee.manager || '',
+        salary: employee.salary || 0,
+        bio: employee.bio || ''
+      }));
+      
+      res.json({ 
+        success: true, 
+        data: formattedEmployees 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get employees:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get employees: ${error.message}` 
+    });
+  }
+});
+
+// Get employee by ID
+app.get('/api/employees/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      const [employees] = await connection.execute(
+        `SELECT * FROM employees WHERE id = ?`,
+        [id]
+      );
+      
+      if (employees.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Employee not found' 
+        });
+      }
+      
+      const employee = employees[0];
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEmployee = {
+        id: employee.id,
+        name: employee.name,
+        position: employee.position,
+        department: employee.department,
+        email: employee.email,
+        phone: employee.phone || '',
+        location: employee.location || '',
+        avatar: employee.avatar || '',
+        hireDate: employee.hire_date,
+        status: employee.status,
+        manager: employee.manager || '',
+        salary: employee.salary || 0,
+        bio: employee.bio || ''
+      };
+      
+      res.json({ 
+        success: true, 
+        data: formattedEmployee 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get employee:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get employee: ${error.message}` 
+    });
+  }
+});
+
+// Update employee
+app.put('/api/employees/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      position,
+      department,
+      email,
+      phone,
+      location,
+      avatar,
+      status,
+      manager,
+      salary,
+      bio
+    } = req.body;
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Check if employee exists
+      const [employees] = await connection.execute(
+        `SELECT * FROM employees WHERE id = ?`,
+        [id]
+      );
+      
+      if (employees.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Employee not found' 
+        });
+      }
+      
+      // Update the employee
+      await connection.execute(
+        `UPDATE employees 
+         SET name = ?, position = ?, department = ?, email = ?, 
+             phone = ?, location = ?, avatar = ?, status = ?, 
+             manager = ?, salary = ?, bio = ?
+         WHERE id = ?`,
+        [
+          name,
+          position,
+          department,
+          email,
+          phone || null,
+          location || null,
+          avatar || null,
+          status,
+          manager || null,
+          salary || null,
+          bio || null,
+          id
+        ]
+      );
+      
+      // Get the updated employee
+      const [updatedEmployees] = await connection.execute(
+        `SELECT * FROM employees WHERE id = ?`,
+        [id]
+      );
+      
+      const employee = updatedEmployees[0];
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEmployee = {
+        id: employee.id,
+        name: employee.name,
+        position: employee.position,
+        department: employee.department,
+        email: employee.email,
+        phone: employee.phone || '',
+        location: employee.location || '',
+        avatar: employee.avatar || '',
+        hireDate: employee.hire_date,
+        status: employee.status,
+        manager: employee.manager || '',
+        salary: employee.salary || 0,
+        bio: employee.bio || ''
+      };
+      
+      res.json({ 
+        success: true, 
+        data: formattedEmployee 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to update employee:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to update employee: ${error.message}` 
+    });
+  }
+});
+
+// Helper function to ensure the calendar_events table exists
+async function ensureCalendarEventsTable(connection) {
+  try {
+    // Check if the table exists
+    try {
+      await connection.execute('SELECT 1 FROM calendar_events LIMIT 1');
+      return true; // Table exists
+    } catch (error) {
+      if (error.code === 'ER_NO_SUCH_TABLE') {
+        console.log('Creating calendar_events table...');
+        
+        // Create the table
+        await connection.execute(`
+          CREATE TABLE IF NOT EXISTS calendar_events (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            start_date DATETIME NOT NULL,
+            end_date DATETIME NOT NULL,
+            location VARCHAR(255),
+            event_type ENUM('meeting', 'holiday', 'training', 'conference', 'other') NOT NULL DEFAULT 'other',
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL
+          )
+        `);
+        
+        // Check if there are any employees in the database
+        const [employees] = await connection.execute('SELECT id FROM employees LIMIT 5');
+        
+        // If no employees exist, create a default employee
+        if (employees.length === 0) {
+          console.log('No employees found. Creating a default employee for calendar events...');
+          await connection.execute(`
+            INSERT INTO employees (name, position, department, email, phone, location, hire_date, status, manager, salary, bio)
+            VALUES ('System Admin', 'Administrator', 'IT', 'admin@hrgoat.com', '555-0000', 'Headquarters', CURDATE(), 'active', 'N/A', 0, 'System administrator account')
+          `);
+          
+          // Get the ID of the newly created employee
+          const [newEmployees] = await connection.execute('SELECT id FROM employees ORDER BY id ASC LIMIT 1');
+          employees.push(newEmployees[0]);
+        }
+        
+        // Get current date for reference
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        
+        // Use the first employee ID as a fallback
+        const defaultEmployeeId = employees[0].id;
+        
+        // Insert sample data with current dates and valid employee IDs
+        await connection.execute(`
+          INSERT INTO calendar_events (title, description, start_date, end_date, location, event_type, created_by)
+          VALUES 
+            ('Quarterly Review Meeting', 'Review of Q3 performance and goals', '${currentYear}-${currentMonth+1}-15 10:00:00', '${currentYear}-${currentMonth+1}-15 12:00:00', 'Conference Room A', 'meeting', ${defaultEmployeeId}),
+            ('Company Picnic', 'Annual company picnic at Central Park', '${currentYear}-${currentMonth+1}-22 12:00:00', '${currentYear}-${currentMonth+1}-22 16:00:00', 'Central Park', 'other', ${defaultEmployeeId}),
+            ('New Product Training', 'Training session for the new product launch', '${currentYear}-${currentMonth+1}-18 09:00:00', '${currentYear}-${currentMonth+1}-19 17:00:00', 'Training Center', 'training', ${defaultEmployeeId}),
+            ('Team Building Workshop', 'Interactive workshop to improve team collaboration', '${currentYear}-${currentMonth+1}-25 13:00:00', '${currentYear}-${currentMonth+1}-25 17:00:00', 'Conference Room B', 'training', ${defaultEmployeeId}),
+            ('Annual Performance Reviews', 'Schedule for annual performance evaluations', '${currentYear}-${currentMonth+2}-05 09:00:00', '${currentYear}-${currentMonth+2}-09 17:00:00', 'HR Office', 'meeting', ${defaultEmployeeId}),
+            ('Tech Conference', 'Annual technology conference', '${currentYear}-${currentMonth+2}-15 08:00:00', '${currentYear}-${currentMonth+2}-17 18:00:00', 'Convention Center', 'conference', ${defaultEmployeeId}),
+            ('Holiday Party', 'Annual company holiday celebration', '${currentYear}-12-15 18:00:00', '${currentYear}-12-15 22:00:00', 'Grand Ballroom', 'other', ${defaultEmployeeId}),
+            ('New Year Planning', 'Strategic planning session for the upcoming year', '${currentYear}-12-20 09:00:00', '${currentYear}-12-20 16:00:00', 'Executive Boardroom', 'meeting', ${defaultEmployeeId}),
+            ('Product Launch', 'Official launch of our new product line', '${currentYear}-${currentMonth+2}-28 10:00:00', '${currentYear}-${currentMonth+2}-28 14:00:00', 'Main Auditorium', 'other', ${defaultEmployeeId}),
+            ('Wellness Day', 'Company-wide wellness activities and health screenings', '${currentYear}-${currentMonth+1}-30 09:00:00', '${currentYear}-${currentMonth+1}-30 17:00:00', 'Company Campus', 'other', ${defaultEmployeeId})
+          `);
+        
+        console.log('Sample calendar events inserted successfully');
+        return true;
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring calendar_events table:', error);
+    throw error;
+  }
+}
+
+// Calendar Events API
+app.get('/api/calendar-events', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      await ensureCalendarEventsTable(connection);
+      
+      // Get all calendar events
+      const [events] = await connection.execute(`
+        SELECT 
+          ce.*,
+          e.name as creator_name
+        FROM calendar_events ce
+        LEFT JOIN employees e ON ce.created_by = e.id
+        ORDER BY ce.start_date ASC
+      `);
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEvents = events.map(event => ({
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        startDate: event.start_date,
+        endDate: event.end_date,
+        location: event.location || '',
+        eventType: event.event_type,
+        createdBy: event.created_by,
+        createdAt: event.created_at,
+        updatedAt: event.updated_at,
+        creatorName: event.creator_name || 'System'
+      }));
+      
+      res.json({ data: formattedEvents, error: null });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    res.status(500).json({ data: null, error: 'Failed to fetch calendar events' });
+  }
+});
+
+// Get calendar event by ID
+app.get('/api/calendar-events/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      const [events] = await connection.execute(
+        `SELECT ce.*, e.name as creator_name 
+         FROM calendar_events ce
+         LEFT JOIN employees e ON ce.created_by = e.id
+         WHERE ce.id = ?`,
+        [id]
+      );
+      
+      if (events.length === 0) {
+        return res.status(404).json({ 
+          data: null,
+          error: 'Calendar event not found' 
+        });
+      }
+      
+      const event = events[0];
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEvent = {
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        startDate: event.start_date,
+        endDate: event.end_date,
+        location: event.location || '',
+        eventType: event.event_type,
+        createdBy: event.created_by,
+        createdAt: event.created_at,
+        updatedAt: event.updated_at,
+        creatorName: event.creator_name || 'System'
+      };
+      
+      res.json({ 
+        data: formattedEvent,
+        error: null
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error fetching calendar event:', error);
+    res.status(500).json({ 
+      data: null,
+      error: `Failed to fetch calendar event: ${error.message}` 
+    });
+  }
+});
+
+// Create a new calendar event
+app.post('/api/calendar-events', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      startDate,
+      endDate,
+      location,
+      eventType,
+      createdBy
+    } = req.body;
+    
+    if (!title || !startDate || !endDate) {
+      return res.status(400).json({
+        data: null,
+        error: 'Title, start date, and end date are required'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Ensure the calendar_events table exists
+      await ensureCalendarEventsTable(connection);
+      
+      // Validate date formats
+      try {
+        new Date(startDate);
+        new Date(endDate);
+      } catch (error) {
+        return res.status(400).json({
+          data: null,
+          error: 'Invalid date format. Please use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ)'
+        });
+      }
+      
+      // Insert the new event
+      const [result] = await connection.execute(
+        `INSERT INTO calendar_events 
+         (title, description, start_date, end_date, location, event_type, created_by) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          description || null,
+          startDate,
+          endDate,
+          location || null,
+          eventType || 'other',
+          createdBy || null
+        ]
+      );
+      
+      // Get the newly created event
+      const [events] = await connection.execute(
+        `SELECT ce.*, e.name as creator_name 
+         FROM calendar_events ce
+         LEFT JOIN employees e ON ce.created_by = e.id
+         WHERE ce.id = ?`,
+        [result.insertId]
+      );
+      
+      const event = events[0];
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEvent = {
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        startDate: event.start_date,
+        endDate: event.end_date,
+        location: event.location || '',
+        eventType: event.event_type,
+        createdBy: event.created_by,
+        createdAt: event.created_at,
+        updatedAt: event.updated_at,
+        creatorName: event.creator_name || 'System'
+      };
+      
+      res.status(201).json({ 
+        data: formattedEvent,
+        error: null
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error creating calendar event:', error);
+    res.status(500).json({ 
+      data: null,
+      error: `Failed to create calendar event: ${error.message}` 
+    });
+  }
+});
+
+// Update a calendar event
+app.put('/api/calendar-events/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      startDate,
+      endDate,
+      location,
+      eventType
+    } = req.body;
+    
+    if (!title || !startDate || !endDate) {
+      return res.status(400).json({
+        data: null,
+        error: 'Title, start date, and end date are required'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Check if event exists
+      const [events] = await connection.execute(
+        `SELECT * FROM calendar_events WHERE id = ?`,
+        [id]
+      );
+      
+      if (events.length === 0) {
+        return res.status(404).json({ 
+          data: null,
+          error: 'Calendar event not found' 
+        });
+      }
+      
+      // Validate date formats
+      try {
+        new Date(startDate);
+        new Date(endDate);
+      } catch (error) {
+        return res.status(400).json({
+          data: null,
+          error: 'Invalid date format. Please use ISO format (YYYY-MM-DDTHH:MM:SS.sssZ)'
+        });
+      }
+      
+      // Update the event
+      await connection.execute(
+        `UPDATE calendar_events 
+         SET title = ?, description = ?, start_date = ?, end_date = ?, location = ?, event_type = ?
+         WHERE id = ?`,
+        [
+          title,
+          description || null,
+          startDate,
+          endDate,
+          location || null,
+          eventType || 'other',
+          id
+        ]
+      );
+      
+      // Get the updated event
+      const [updatedEvents] = await connection.execute(
+        `SELECT ce.*, e.name as creator_name 
+         FROM calendar_events ce
+         LEFT JOIN employees e ON ce.created_by = e.id
+         WHERE ce.id = ?`,
+        [id]
+      );
+      
+      const event = updatedEvents[0];
+      
+      // Format dates and convert snake_case to camelCase
+      const formattedEvent = {
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        startDate: event.start_date,
+        endDate: event.end_date,
+        location: event.location || '',
+        eventType: event.event_type,
+        createdBy: event.created_by,
+        createdAt: event.created_at,
+        updatedAt: event.updated_at,
+        creatorName: event.creator_name || 'System'
+      };
+      
+      res.json({ 
+        data: formattedEvent,
+        error: null
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error updating calendar event:', error);
+    res.status(500).json({ 
+      data: null,
+      error: `Failed to update calendar event: ${error.message}` 
+    });
+  }
+});
+
+// Delete a calendar event
+app.delete('/api/calendar-events/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      // Check if event exists
+      const [events] = await connection.execute(
+        `SELECT * FROM calendar_events WHERE id = ?`,
+        [id]
+      );
+      
+      if (events.length === 0) {
+        return res.status(404).json({ 
+          data: null,
+          error: 'Calendar event not found' 
+        });
+      }
+      
+      // Delete the event
+      await connection.execute(
+        `DELETE FROM calendar_events WHERE id = ?`,
+        [id]
+      );
+      
+      res.json({ 
+        data: true,
+        error: null
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error deleting calendar event:', error);
+    res.status(500).json({ 
+      data: null,
+      error: `Failed to delete calendar event: ${error.message}` 
+    });
+  }
+});
+
+// Add a new endpoint to reset calendar events with fresh mock data
+app.post('/api/reset-calendar-events', async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      // Drop the existing table
+      await connection.execute('DROP TABLE IF EXISTS calendar_events');
+      console.log('Calendar events table dropped');
+      
+      // Recreate the table with fresh mock data
+      const success = await ensureCalendarEventsTable(connection);
+      
+      if (success) {
+        res.json({ 
+          data: { success: true, message: 'Calendar events reset successfully' }, 
+          error: null 
+        });
+      } else {
+        throw new Error('Failed to recreate calendar events table');
+      }
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error resetting calendar events:', error);
+    res.status(500).json({ 
+      data: null, 
+      error: 'Failed to reset calendar events: ' + error.message 
+    });
+  }
+});
+
+// VULNERABLE ENDPOINT - DO NOT USE IN PRODUCTION
+// This endpoint is intentionally vulnerable to SSRF and potential RCE
+// FOR EDUCATIONAL PURPOSES ONLY
+app.post('/api/system/fetch-resource', async (req, res) => {
+  try {
+    const { url, command } = req.body;
+    
+    console.log('Received request to fetch resource:', { url, command });
+    
+    if (url) {
+      // VULNERABLE: No validation of URL - allows internal network scanning and SSRF
+      const http = require('http');
+      const https = require('https');
+      
+      // Determine which protocol to use
+      const client = url.startsWith('https') ? https : http;
+      
+      // Make the request without any validation
+      const request = client.get(url, (response) => {
+        let data = '';
+        
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+        
+        response.on('end', () => {
+          res.json({
+            success: true,
+            data: data,
+            status: response.statusCode,
+            headers: response.headers
+          });
+        });
+      });
+      
+      request.on('error', (error) => {
+        res.status(500).json({
+          success: false,
+          message: `Error fetching resource: ${error.message}`
+        });
+      });
+      
+      request.end();
+    } else if (command) {
+      // EXTREMELY VULNERABLE: Allows direct command execution
+      // This is a severe security risk - NEVER do this in production
+      const { exec } = require('child_process');
+      
+      // Execute the command without any validation or sanitization
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          res.status(500).json({
+            success: false,
+            message: `Command execution failed: ${error.message}`,
+            stderr: stderr
+          });
+          return;
+        }
+        
+        res.json({
+          success: true,
+          stdout: stdout,
+          stderr: stderr
+        });
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Either url or command parameter is required'
+      });
+    }
+  } catch (error) {
+    console.error('Error in fetch-resource endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: `An error occurred: ${error.message}`
+    });
+  }
 });

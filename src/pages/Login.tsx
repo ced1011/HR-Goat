@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -50,7 +49,7 @@ const Login = () => {
               <Database className="h-10 w-10 text-white" />
             </div>
             <h1 className="mt-6 text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              HR Portal
+              HRGoat
             </h1>
             <div className="mt-3 flex justify-center space-x-2">
               <Users className="h-6 w-6 text-gray-600" />
@@ -58,7 +57,7 @@ const Login = () => {
               <Database className="h-6 w-6 text-gray-600" />
             </div>
             <p className="mt-2 text-center text-sm text-gray-600">
-              Streamline your HR operations with our powerful platform
+              Streamline your HR operations with our powerful goat-powered platform
             </p>
           </div>
           

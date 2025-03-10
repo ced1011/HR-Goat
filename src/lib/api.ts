@@ -1,5 +1,4 @@
-
-import { Employee, ApiResponse } from './api-models';
+import { Employee, ApiResponse, BankAccount } from './api-models';
 import { toast } from 'sonner';
 import { db } from './database';
 
@@ -13,7 +12,8 @@ export type {
   TaxDocument,
   PerformanceReview,
   PerformanceGoal,
-  SkillAssessment
+  SkillAssessment,
+  BankAccount
 } from './api-models';
 
 // Re-export individual API services
@@ -152,19 +152,74 @@ const mockEmployees: Employee[] = [
   }
 ];
 
+// Mock bank accounts data
+const mockBankAccounts: BankAccount[] = [
+  {
+    id: 1,
+    employeeId: 1,
+    accountType: 'checking',
+    bankName: 'Chase Bank',
+    accountNumber: '****4567',
+    routingNumber: '****1234',
+    isPrimary: true,
+    createdAt: '2022-01-15T00:00:00Z',
+    updatedAt: '2022-01-15T00:00:00Z'
+  },
+  {
+    id: 2,
+    employeeId: 1,
+    accountType: 'savings',
+    bankName: 'Bank of America',
+    accountNumber: '****7890',
+    routingNumber: '****5678',
+    isPrimary: false,
+    createdAt: '2022-02-20T00:00:00Z',
+    updatedAt: '2022-02-20T00:00:00Z'
+  },
+  {
+    id: 3,
+    employeeId: 2,
+    accountType: 'checking',
+    bankName: 'Wells Fargo',
+    accountNumber: '****2345',
+    routingNumber: '****9012',
+    isPrimary: true,
+    createdAt: '2022-01-10T00:00:00Z',
+    updatedAt: '2022-01-10T00:00:00Z'
+  },
+  {
+    id: 4,
+    employeeId: 3,
+    accountType: 'checking',
+    bankName: 'Citibank',
+    accountNumber: '****6789',
+    routingNumber: '****3456',
+    isPrimary: true,
+    createdAt: '2022-03-05T00:00:00Z',
+    updatedAt: '2022-03-05T00:00:00Z'
+  },
+  {
+    id: 5,
+    employeeId: 3,
+    accountType: 'investment',
+    bankName: 'Fidelity',
+    accountNumber: '****1234',
+    routingNumber: '****7890',
+    isPrimary: false,
+    createdAt: '2022-04-15T00:00:00Z',
+    updatedAt: '2022-04-15T00:00:00Z'
+  }
+];
+
 // API service class
 class ApiService {
   private baseUrl: string;
   
   constructor() {
-    // In a real implementation, this would be an actual API endpoint
+    // Use the proxied API endpoint
     this.baseUrl = '/api';
     
-    console.log('API Service initialized with DB config:', {
-      host: DB_CONFIG.host,
-      username: DB_CONFIG.username,
-      // Password masked for security
-    });
+    console.log('API Service initialized');
   }
   
   // Generic request method
@@ -174,51 +229,49 @@ class ApiService {
     data?: any
   ): Promise<ApiResponse<T>> {
     try {
-      // For now, this is mocked
-      // In a real implementation, this would make actual HTTP requests
-      
-      console.log(`Making ${method} request to ${endpoint}`, data);
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Try to fetch from database first, fall back to mock data if needed
-      let responseData: any;
-      
-      // Database queries based on endpoints
-      if (endpoint === '/employees' && method === 'GET') {
-        const dbResult = await db.query<Employee[]>('SELECT * FROM employees');
-        if (!dbResult.error && Array.isArray(dbResult.data) && dbResult.data.length > 0) {
-          responseData = dbResult.data;
-        } else {
-          // Fall back to mock data
-          responseData = mockEmployees;
+      // Build the request options
+      const options: RequestInit = {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
         }
-      } else if (endpoint.startsWith('/employees/') && method === 'GET') {
-        const id = parseInt(endpoint.split('/').pop() || '0');
-        const dbResult = await db.query<Employee[]>('SELECT * FROM employees WHERE id = ?', [id]);
-        
-        if (!dbResult.error && Array.isArray(dbResult.data) && dbResult.data.length > 0) {
-          responseData = dbResult.data[0];
-        } else {
-          // Fall back to mock data
-          responseData = mockEmployees.find(emp => emp.id === id);
-        }
-        
-        if (!responseData) {
-          throw new Error('Employee not found');
-        }
-      } else {
-        // Mock successful response for other endpoints
-        responseData = { success: true };
+      };
+      
+      // Add body for non-GET requests
+      if (method !== 'GET' && data) {
+        options.body = JSON.stringify(data);
+      }
+      
+      console.log(`Making ${method} request to ${this.baseUrl}${endpoint}`, data);
+      
+      // Make the request to the backend API
+      const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(responseData.message || 'API request failed');
       }
       
       return { data: responseData as T, error: null };
     } catch (error) {
-      console.error('API request failed:', error);
+      console.error(`API request to ${endpoint} failed:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error('API request failed', { description: errorMessage });
-      return { data: {} as T, error: errorMessage };
+      
+      // Fall back to mock data for GET requests in development
+      if (method === 'GET' && import.meta.env.DEV) {
+        console.warn('Falling back to mock data for development');
+        
+        // Return mock data based on the endpoint
+        if (endpoint === '/employees') {
+          return { data: mockEmployees as unknown as T, error: null };
+        } else if (endpoint.startsWith('/employees/')) {
+          const id = parseInt(endpoint.split('/').pop() || '0');
+          const employee = mockEmployees.find(e => e.id === id);
+          return { data: (employee || null) as unknown as T, error: null };
+        }
+      }
+      
+      return { data: null as unknown as T, error: errorMessage };
     }
   }
   
@@ -229,6 +282,10 @@ class ApiService {
   
   async getEmployeeById(id: number): Promise<ApiResponse<Employee>> {
     return this.request<Employee>(`/employees/${id}`);
+  }
+  
+  async updateEmployee(id: number, data: Partial<Employee>): Promise<ApiResponse<Employee>> {
+    return this.request<Employee>(`/employees/${id}`, 'PUT', data);
   }
   
   async searchEmployees(query: string): Promise<ApiResponse<Employee[]>> {
@@ -308,6 +365,93 @@ class ApiService {
       console.error('Filter failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       return { data: [], error: errorMessage };
+    }
+  }
+
+  // Bank Account Methods
+  async getBankAccounts(employeeId: number): Promise<ApiResponse<BankAccount[]>> {
+    try {
+      // In a real app, this would be a fetch call to the API
+      const accounts = mockBankAccounts.filter(account => account.employeeId === employeeId);
+      return { data: accounts, error: null };
+    } catch (error) {
+      console.error('Error fetching bank accounts:', error);
+      return { data: [], error: 'Failed to fetch bank accounts' };
+    }
+  }
+
+  async addBankAccount(account: Omit<BankAccount, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<BankAccount>> {
+    try {
+      // In a real app, this would be a POST request to the API
+      const newAccount: BankAccount = {
+        ...account,
+        id: Math.max(...mockBankAccounts.map(a => a.id)) + 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // If this is set as primary, update other accounts
+      if (newAccount.isPrimary) {
+        mockBankAccounts.forEach(acc => {
+          if (acc.employeeId === newAccount.employeeId) {
+            acc.isPrimary = false;
+          }
+        });
+      }
+      
+      mockBankAccounts.push(newAccount);
+      return { data: newAccount, error: null };
+    } catch (error) {
+      console.error('Error adding bank account:', error);
+      return { data: {} as BankAccount, error: 'Failed to add bank account' };
+    }
+  }
+
+  async updateBankAccount(id: number, updates: Partial<BankAccount>): Promise<ApiResponse<BankAccount>> {
+    try {
+      // In a real app, this would be a PUT request to the API
+      const accountIndex = mockBankAccounts.findIndex(acc => acc.id === id);
+      if (accountIndex === -1) {
+        return { data: {} as BankAccount, error: 'Bank account not found' };
+      }
+      
+      // If setting as primary, update other accounts
+      if (updates.isPrimary) {
+        const employeeId = mockBankAccounts[accountIndex].employeeId;
+        mockBankAccounts.forEach(acc => {
+          if (acc.employeeId === employeeId) {
+            acc.isPrimary = false;
+          }
+        });
+      }
+      
+      const updatedAccount = {
+        ...mockBankAccounts[accountIndex],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
+      
+      mockBankAccounts[accountIndex] = updatedAccount;
+      return { data: updatedAccount, error: null };
+    } catch (error) {
+      console.error('Error updating bank account:', error);
+      return { data: {} as BankAccount, error: 'Failed to update bank account' };
+    }
+  }
+
+  async deleteBankAccount(id: number): Promise<ApiResponse<boolean>> {
+    try {
+      // In a real app, this would be a DELETE request to the API
+      const accountIndex = mockBankAccounts.findIndex(acc => acc.id === id);
+      if (accountIndex === -1) {
+        return { data: false, error: 'Bank account not found' };
+      }
+      
+      mockBankAccounts.splice(accountIndex, 1);
+      return { data: true, error: null };
+    } catch (error) {
+      console.error('Error deleting bank account:', error);
+      return { data: false, error: 'Failed to delete bank account' };
     }
   }
 }

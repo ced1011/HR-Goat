@@ -1,4 +1,3 @@
-
 // API Response Types
 export interface ApiResponse<T = any> {
   data: T;
@@ -130,4 +129,32 @@ export interface SkillAssessment {
   assessmentDate: string;
   assessorId: number;
   comments: string;
+}
+
+// Bank Account Types
+export interface BankAccount {
+  id: number;
+  employeeId: number;
+  accountType: 'checking' | 'savings' | 'investment';
+  bankName: string;
+  accountNumber: string;
+  routingNumber: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Calendar Event Types
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  location: string;
+  eventType: 'meeting' | 'holiday' | 'training' | 'conference' | 'other';
+  createdBy: number;
+  createdAt: string;
+  updatedAt: string;
+  creatorName?: string; // Optional field for displaying the creator's name
 }
