@@ -1,5 +1,5 @@
 
-import { Employee } from './api-models';
+import { Employee, ApiResponse } from './api-models';
 import { toast } from 'sonner';
 import { db } from './database';
 
