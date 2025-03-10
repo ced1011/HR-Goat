@@ -1,3 +1,4 @@
+
 import { Employee } from './api-models';
 import { toast } from 'sonner';
 
@@ -22,7 +23,7 @@ export { performanceApiService } from './api-services/performance-api';
 const DB_CONFIG = {
   host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
   username: 'admin',
-  password: 'AA111333!!AAaabb'
+  password: 'OLLI4RVKjgWdHVfc52b6'
 };
 
 // Mock data (until the actual DB connection is established)
