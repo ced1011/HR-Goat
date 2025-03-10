@@ -9,7 +9,7 @@ const DB_CONFIG = {
   host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
   user: 'admin',
   password: 'OLLI4RVKjgWdHVfc52b6',
-  database: 'hr_portal'
+  database: 'hrportal'
 };
 
 class Database {

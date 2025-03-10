@@ -55,6 +55,10 @@ const DatabaseConnectionCard: React.FC<DatabaseConnectionCardProps> = ({
               <h3 className="text-sm font-medium mb-1">Password</h3>
               <p className="text-sm">••••••••••••••••</p>
             </div>
+            <div>
+              <h3 className="text-sm font-medium mb-1">Database</h3>
+              <p className="text-sm">hrportal</p>
+            </div>
           </div>
           
           <div className="flex mt-4">

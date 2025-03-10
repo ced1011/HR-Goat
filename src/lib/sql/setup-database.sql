@@ -1,4 +1,3 @@
-
 -- Database Schema Setup for HR Portal
 
 -- Create Employees table
