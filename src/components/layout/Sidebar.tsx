@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,8 @@ import {
   Activity,
   Database,
   Terminal,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -32,7 +35,7 @@ const Sidebar = ({ isOpen = false }) => {
         {
           'w-64': !effectiveCollapsed,
           'w-[70px]': effectiveCollapsed,
-          'fixed inset-y-[64px] left-0 z-30': isMobile,
+          'fixed inset-y-[64px] left-0 z-30 shadow-lg': isMobile,
           'relative': !isMobile,
           'translate-x-0': !effectiveCollapsed,
           '-translate-x-full': isMobile && effectiveCollapsed,
@@ -40,13 +43,13 @@ const Sidebar = ({ isOpen = false }) => {
       )}
     >
       <div className="flex h-full flex-col">
-        <ScrollArea className="flex-1 py-2">
-          <nav className="grid items-start gap-1 px-2 text-sm font-medium">
+        <ScrollArea className="flex-1 py-4">
+          <nav className="grid items-start gap-2 px-3 text-sm font-medium">
             <NavLink
               to="/dashboard"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive || pathname == '/'
                     ? 'bg-accent text-accent-foreground'
                     : 'transparent'
@@ -60,7 +63,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/employees"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -72,7 +75,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/payroll"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -84,7 +87,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/performance"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -96,7 +99,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/calendar"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -108,7 +111,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/documents"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -120,7 +123,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/reports"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -132,7 +135,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/database-setup"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -144,7 +147,7 @@ const Sidebar = ({ isOpen = false }) => {
               to="/system-tools"
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
                   isActive ? 'bg-accent text-accent-foreground' : 'transparent'
                 )
               }
@@ -154,12 +157,12 @@ const Sidebar = ({ isOpen = false }) => {
             </NavLink>
           </nav>
         </ScrollArea>
-        <div className="border-t p-2">
+        <div className="border-t p-4">
           <NavLink
             to="/settings"
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent hover:text-accent-foreground',
+                'flex items-center gap-3 rounded-lg px-3 py-2 mb-3 transition-colors hover:bg-accent hover:text-accent-foreground',
                 isActive ? 'bg-accent text-accent-foreground' : 'transparent'
               )
             }
@@ -167,13 +170,19 @@ const Sidebar = ({ isOpen = false }) => {
             <Settings className="h-4 w-4" />
             {!effectiveCollapsed && <span>Settings</span>}
           </NavLink>
+          
           <Button
             variant="outline"
             size="sm"
-            className="mt-2 w-full justify-center"
+            className="w-full justify-center items-center h-9 transition-all duration-200"
             onClick={() => setCollapsed(!collapsed)}
           >
-            {effectiveCollapsed ? '→' : '←'}
+            {effectiveCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+            {!effectiveCollapsed && <span className="ml-2">Collapse</span>}
           </Button>
         </div>
       </div>

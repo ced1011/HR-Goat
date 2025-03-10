@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Bell, Menu, X, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,12 +14,12 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, isSidebarOpen }) => {
   const navigate = useNavigate();
   
   return (
-    <header className="h-16 px-4 md:px-6 bg-white border-b border-hr-silver/20 sticky top-0 z-30 transition-all duration-300 glassmorphism">
+    <header className="h-16 px-4 md:px-6 bg-white border-b border-hr-silver/20 sticky top-0 z-40 transition-all duration-300 glassmorphism">
       <div className="flex items-center justify-between h-full max-w-[1920px] mx-auto">
         <div className="flex items-center space-x-4">
           <button 
             onClick={toggleSidebar} 
-            className="p-1.5 rounded-full hover:bg-hr-silver/10 transition-colors"
+            className="p-2 rounded-full hover:bg-hr-silver/10 transition-colors md:hidden"
             aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
           >
             {isSidebarOpen ? (
