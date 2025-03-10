@@ -1,6 +1,7 @@
 
 import { Employee } from './api-models';
 import { toast } from 'sonner';
+import { db } from './database';
 
 // Type definitions
 export type { 
@@ -18,6 +19,7 @@ export type {
 // Re-export individual API services
 export { payrollApiService } from './api-services/payroll-api';
 export { performanceApiService } from './api-services/performance-api';
+export { databaseSetupService } from './api-services/database-setup';
 
 // Database configuration
 const DB_CONFIG = {
@@ -180,14 +182,28 @@ class ApiService {
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Mock responses based on endpoints
+      // Try to fetch from database first, fall back to mock data if needed
       let responseData: any;
       
+      // Database queries based on endpoints
       if (endpoint === '/employees' && method === 'GET') {
-        responseData = mockEmployees;
+        const dbResult = await db.query<Employee[]>('SELECT * FROM employees');
+        if (!dbResult.error && Array.isArray(dbResult.data) && dbResult.data.length > 0) {
+          responseData = dbResult.data;
+        } else {
+          // Fall back to mock data
+          responseData = mockEmployees;
+        }
       } else if (endpoint.startsWith('/employees/') && method === 'GET') {
         const id = parseInt(endpoint.split('/').pop() || '0');
-        responseData = mockEmployees.find(emp => emp.id === id);
+        const dbResult = await db.query<Employee[]>('SELECT * FROM employees WHERE id = ?', [id]);
+        
+        if (!dbResult.error && Array.isArray(dbResult.data) && dbResult.data.length > 0) {
+          responseData = dbResult.data[0];
+        } else {
+          // Fall back to mock data
+          responseData = mockEmployees.find(emp => emp.id === id);
+        }
         
         if (!responseData) {
           throw new Error('Employee not found');
@@ -216,10 +232,22 @@ class ApiService {
   }
   
   async searchEmployees(query: string): Promise<ApiResponse<Employee[]>> {
-    // In a real implementation, this would send the query to the backend
-    // For now, we'll filter the mock data
     try {
+      // Try database query first
       const lowercaseQuery = query.toLowerCase();
+      const dbResult = await db.query<Employee[]>(
+        `SELECT * FROM employees WHERE 
+         LOWER(name) LIKE ? OR 
+         LOWER(position) LIKE ? OR 
+         LOWER(department) LIKE ?`,
+        [`%${lowercaseQuery}%`, `%${lowercaseQuery}%`, `%${lowercaseQuery}%`]
+      );
+      
+      if (!dbResult.error && Array.isArray(dbResult.data) && dbResult.data.length > 0) {
+        return { data: dbResult.data, error: null };
+      }
+      
+      // Fall back to filtering mock data
       const filtered = mockEmployees.filter(employee => 
         employee.name.toLowerCase().includes(lowercaseQuery) ||
         employee.position.toLowerCase().includes(lowercaseQuery) ||
@@ -235,9 +263,35 @@ class ApiService {
   }
   
   async filterEmployees(filters: Record<string, string>): Promise<ApiResponse<Employee[]>> {
-    // In a real implementation, this would send the filters to the backend
-    // For now, we'll filter the mock data
     try {
+      // Try database query first with dynamic WHERE clause construction
+      if (Object.keys(filters).length > 0) {
+        let whereClause = '';
+        const params: string[] = [];
+        
+        Object.entries(filters).forEach(([key, value], index) => {
+          if (value) {
+            if (index > 0) {
+              whereClause += ' AND ';
+            }
+            whereClause += `LOWER(${key}) LIKE ?`;
+            params.push(`%${value.toLowerCase()}%`);
+          }
+        });
+        
+        if (whereClause) {
+          const dbResult = await db.query<Employee[]>(
+            `SELECT * FROM employees WHERE ${whereClause}`,
+            params
+          );
+          
+          if (!dbResult.error && Array.isArray(dbResult.data)) {
+            return { data: dbResult.data, error: null };
+          }
+        }
+      }
+      
+      // Fall back to filtering mock data
       let filtered = [...mockEmployees];
       
       Object.entries(filters).forEach(([key, value]) => {
