@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import PageContainer from '@/components/layout/PageContainer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-custom/Card';
 import Button from '@/components/ui-custom/Button';
@@ -18,12 +18,15 @@ import {
   CheckCircle,
   Edit,
   Clock,
-  Award
+  Award,
+  Target,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const ProfilePage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -152,7 +155,7 @@ const ProfilePage = () => {
               </div>
             </div>
             
-            <div className="flex-1 flex justify-center md:justify-end mt-6 md:mt-0">
+            <div className="flex-1 flex flex-wrap justify-center md:justify-end mt-6 md:mt-0 gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -161,11 +164,24 @@ const ProfilePage = () => {
               >
                 Edit Profile
               </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<CreditCard className="h-4 w-4" />}
+                className="mr-2"
+                onClick={() => navigate(`/payroll/${employee.id}`)}
+              >
+                View Payroll
+              </Button>
+              
               <Button
                 variant="primary"
                 size="sm"
+                icon={<Target className="h-4 w-4" />}
+                onClick={() => navigate(`/performance/${employee.id}`)}
               >
-                View Performance
+                Performance
               </Button>
             </div>
           </div>
@@ -274,16 +290,86 @@ const ProfilePage = () => {
       </div>
       
       <SlideIn direction="up" delay={500}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance Overview</CardTitle>
+        <Card className="mb-6">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center">
+              <Target className="h-5 w-5 mr-2 text-hr-blue" />
+              <span>Performance Overview</span>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/performance/${employee.id}`)}
+            >
+              View Full Performance
+            </Button>
           </CardHeader>
           <CardContent className="pb-6">
-            <div className="text-center py-10">
-              <FileText className="h-10 w-10 mx-auto text-hr-text-secondary mb-2" />
-              <p className="text-hr-text-secondary">
-                Performance data visualization will appear here.
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Last Review Rating</div>
+                <div className="flex items-center">
+                  <div className="text-2xl font-semibold mr-2">4.2</div>
+                  <div className="flex">
+                    {[1, 2, 3, 4].map(star => (
+                      <Star key={star} className="h-4 w-4 text-amber-500 fill-current" />
+                    ))}
+                    <HalfStar className="h-4 w-4 text-amber-500" />
+                  </div>
+                </div>
+                <div className="text-xs text-hr-text-secondary mt-2">June 30, 2023</div>
+              </div>
+              
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Active Goals</div>
+                <div className="text-2xl font-semibold">3</div>
+                <div className="text-xs text-hr-text-secondary mt-2">2 in progress, 1 not started</div>
+              </div>
+              
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Skill Development</div>
+                <div className="text-2xl font-semibold">+5%</div>
+                <div className="text-xs text-hr-text-secondary mt-2">Growth since last quarter</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </SlideIn>
+      
+      <SlideIn direction="up" delay={600}>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center">
+              <DollarSign className="h-5 w-5 mr-2 text-green-600" />
+              <span>Compensation & Benefits</span>
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/payroll/${employee.id}`)}
+            >
+              View Full Payroll
+            </Button>
+          </CardHeader>
+          <CardContent className="pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Annual Salary</div>
+                <div className="text-2xl font-semibold">${employee.salary?.toLocaleString()}</div>
+                <div className="text-xs text-hr-text-secondary mt-2">Before taxes and deductions</div>
+              </div>
+              
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Benefits Enrolled</div>
+                <div className="text-2xl font-semibold">3</div>
+                <div className="text-xs text-hr-text-secondary mt-2">Health, 401(k), Insurance</div>
+              </div>
+              
+              <div className="bg-hr-silver/5 p-4 rounded-lg">
+                <div className="text-sm text-hr-text-secondary mb-1">Next Payday</div>
+                <div className="text-2xl font-semibold">July 15</div>
+                <div className="text-xs text-hr-text-secondary mt-2">Direct deposit to account ****4567</div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -291,5 +377,37 @@ const ProfilePage = () => {
     </PageContainer>
   );
 };
+
+// Helper component for half-filled star
+const HalfStar = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <path d="M12 17.8 5.8 21 7 14.1 2 9.3l7-1L12 2" fill="currentColor" />
+    <path d="M12 2v15.8l3.2 3.2L17 14.1l5-4.8-7-1L12 2Z" />
+  </svg>
+);
+
+const Star = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  </svg>
+);
 
 export default ProfilePage;

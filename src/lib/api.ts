@@ -1,27 +1,22 @@
-
+import { Employee } from './api-models';
 import { toast } from 'sonner';
 
 // Type definitions
-export interface Employee {
-  id: number;
-  name: string;
-  position: string;
-  department: string;
-  email: string;
-  phone: string;
-  location: string;
-  avatar: string;
-  hireDate: string;
-  status: 'active' | 'onleave' | 'terminated';
-  manager?: string;
-  salary?: number;
-  bio?: string;
-}
+export type { 
+  Employee, 
+  ApiResponse, 
+  PaySlip, 
+  BenefitPlan, 
+  EmployeeBenefit, 
+  TaxDocument,
+  PerformanceReview,
+  PerformanceGoal,
+  SkillAssessment
+} from './api-models';
 
-interface ApiResponse<T> {
-  data: T;
-  error: string | null;
-}
+// Re-export individual API services
+export { payrollApiService } from './api-services/payroll-api';
+export { performanceApiService } from './api-services/performance-api';
 
 // Database configuration
 const DB_CONFIG = {
