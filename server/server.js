@@ -24,117 +24,142 @@ const dbConfig = {
   queueLimit: 0
 };
 
-// Create a pool for database connections
-const pool = mysql.createPool(dbConfig);
+// Create database pool
+let pool;
+try {
+  pool = mysql.createPool(dbConfig);
+  console.log('Database pool created');
+} catch (error) {
+  console.error('Error creating database pool:', error);
+}
 
 // Test database connection
 app.get('/api/test-connection', async (req, res) => {
   try {
-    // Attempt to get a connection from the pool
     const connection = await pool.getConnection();
-    console.log('Database connection successful');
-    
-    // Release the connection back to the pool
     connection.release();
-    
-    res.json({ success: true, message: 'Database connection successful' });
+    res.json({ success: true, message: 'Database connection established' });
   } catch (error) {
-    console.error('Database connection failed:', error.message);
-    res.status(500).json({ success: false, message: `Connection failed: ${error.message}` });
+    console.error('Database connection test failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to connect to database: ${error.message}` 
+    });
   }
 });
 
-// Run database setup script
+// Run setup script to create tables
 app.post('/api/run-setup-script', async (req, res) => {
   try {
-    // Read the setup SQL file
-    const setupSql = fs.readFileSync(path.join(__dirname, '../src/lib/sql/setup-database.sql'), 'utf8');
+    const setupScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'setup-database.sql');
+    const setupScript = fs.readFileSync(setupScriptPath, 'utf8');
     
-    // Split the SQL file by semicolons to get individual statements
-    const statements = setupSql.split(';').filter(statement => statement.trim() !== '');
-    
-    // Get a connection from the pool
     const connection = await pool.getConnection();
     
-    // Execute each statement
-    for (const statement of statements) {
-      if (statement.trim()) {
-        await connection.query(statement);
+    try {
+      // Split the script by semicolons to execute multiple statements
+      const statements = setupScript
+        .split(';')
+        .map(statement => statement.trim())
+        .filter(statement => statement.length > 0);
+      
+      for (const statement of statements) {
+        await connection.execute(statement);
       }
+      
+      res.json({ 
+        success: true, 
+        message: 'Database tables created successfully' 
+      });
+    } finally {
+      connection.release();
     }
-    
-    // Release the connection back to the pool
-    connection.release();
-    
-    res.json({ success: true, message: 'Database setup completed successfully' });
   } catch (error) {
-    console.error('Database setup failed:', error.message);
-    res.status(500).json({ success: false, message: `Setup failed: ${error.message}` });
+    console.error('Failed to run setup script:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to run setup script: ${error.message}` 
+    });
   }
 });
 
 // Run mock data script
 app.post('/api/run-mock-data-script', async (req, res) => {
   try {
-    // Read the mock data SQL file
-    const mockDataSql = fs.readFileSync(path.join(__dirname, '../src/lib/sql/insert-mock-data.sql'), 'utf8');
+    const mockDataScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'insert-mock-data.sql');
+    const mockDataScript = fs.readFileSync(mockDataScriptPath, 'utf8');
     
-    // Split the SQL file by semicolons to get individual statements
-    const statements = mockDataSql.split(';').filter(statement => statement.trim() !== '');
-    
-    // Get a connection from the pool
     const connection = await pool.getConnection();
     
-    // Execute each statement
-    for (const statement of statements) {
-      if (statement.trim()) {
-        await connection.query(statement);
+    try {
+      // Split the script by semicolons to execute multiple statements
+      const statements = mockDataScript
+        .split(';')
+        .map(statement => statement.trim())
+        .filter(statement => statement.length > 0);
+      
+      for (const statement of statements) {
+        await connection.execute(statement);
       }
+      
+      res.json({ 
+        success: true, 
+        message: 'Mock data inserted successfully' 
+      });
+    } finally {
+      connection.release();
     }
-    
-    // Release the connection back to the pool
-    connection.release();
-    
-    res.json({ success: true, message: 'Mock data inserted successfully' });
   } catch (error) {
-    console.error('Mock data insertion failed:', error.message);
-    res.status(500).json({ success: false, message: `Mock data insertion failed: ${error.message}` });
+    console.error('Failed to run mock data script:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to run mock data script: ${error.message}` 
+    });
   }
 });
 
-// Get database stats
+// Get database stats (tables and row counts)
 app.get('/api/database-stats', async (req, res) => {
   try {
     const connection = await pool.getConnection();
     
-    // Get list of tables
-    const [tables] = await connection.query(`
-      SELECT table_name AS name
-      FROM information_schema.tables
-      WHERE table_schema = ?
-    `, [dbConfig.database]);
-    
-    // Get row count for each table
-    const tablesWithCount = [];
-    
-    for (const table of tables) {
-      const [rows] = await connection.query(`SELECT COUNT(*) AS count FROM ${table.name}`);
-      tablesWithCount.push({
-        name: table.name,
-        rowCount: rows[0].count
-      });
+    try {
+      // Get list of tables
+      const [tables] = await connection.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = ?",
+        [dbConfig.database]
+      );
+      
+      const tableStats = [];
+      
+      // Get row count for each table
+      for (const table of tables) {
+        const tableName = table.TABLE_NAME || table.table_name;
+        const [rows] = await connection.query(
+          `SELECT COUNT(*) as count FROM ${tableName}`
+        );
+        
+        tableStats.push({
+          name: tableName,
+          rowCount: rows[0].count
+        });
+      }
+      
+      res.json({ tables: tableStats });
+    } finally {
+      connection.release();
     }
-    
-    connection.release();
-    
-    res.json({ success: true, tables: tablesWithCount });
   } catch (error) {
-    console.error('Failed to get database stats:', error.message);
-    res.status(500).json({ success: false, message: `Failed to get database stats: ${error.message}` });
+    console.error('Failed to get database stats:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get database stats: ${error.message}`,
+      tables: []
+    });
   }
 });
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
