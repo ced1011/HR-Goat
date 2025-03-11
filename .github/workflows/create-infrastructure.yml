@@ -225,6 +225,14 @@ jobs:
         echo "Waiting for EC2 instance to be ready..."
         aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
         
+        # Print all environment variables
+        echo "Environment variables:"
+        echo "APP_INSTANCE_ID: ${{ env.APP_INSTANCE_ID }}"
+        echo "RDS_HOST: ${{ env.RDS_HOST }}"
+        echo "ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_NAME }}"
+        echo "RDS_USER: ${{ env.RDS_USER }}"
+        echo "RDS_PASSWORD: ${{ env.RDS_PASSWORD }}"
+        
         # Create commands JSON string
         COMMANDS_JSON='["docker stop hrportal || true", "docker rm hrportal || true", "aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"'", "docker pull '"${{ steps.build-image.outputs.image }}"'", "docker run -d --name hrportal -p 80:80 -e DB_HOST=\"'"$DB_HOST"'\" -e DB_USER=\"'"${{ env.RDS_USER }}"'\" -e DB_PASSWORD=\"'"${{ env.RDS_PASSWORD }}"'\" -e DB_NAME=\"'"${{ env.RDS_DATABASE }}"'\" '"${{ steps.build-image.outputs.image }}"'", "docker ps | grep hrportal"]'
         
