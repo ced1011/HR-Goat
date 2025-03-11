@@ -213,10 +213,48 @@ const Dashboard = () => {
         <SlideIn direction="up" duration={400} delay={100}>
           <p className="text-hr-text-secondary">
             Welcome back! Here's what's happening today.
+          
           </p>
         </SlideIn>
       </div>
-      
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">       
+        {/* Announcements - Expanded */}
+        <SlideIn direction="up" delay={700}>
+          <Card className="h-full bg-white shadow-apple-sm">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <CardTitle className="text-lg font-semibold">Announcements</CardTitle>
+              <Button variant="ghost" size="sm" className="text-hr-blue">
+                All announcements
+              </Button>
+            </CardHeader>
+            <CardContent className="py-4">
+              {announcements.map(announcement => (
+                <div 
+                  key={announcement.id} 
+                  className="mb-4 pb-4 border-b border-hr-silver/10 last:border-0 last:pb-0 hover:bg-hr-silver/5 p-3 rounded-lg transition-colors"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start">
+                      <div className="bg-blue-50 p-2 rounded-lg mr-3">
+                        <BellRing className="h-4 w-4 text-hr-blue" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium">{announcement.title}</h4>
+                        <p className="text-xs text-hr-text-secondary mt-1">
+                          {announcement.description}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-medium bg-hr-silver/10 px-2 py-1 rounded-full text-hr-text-secondary">
+                      {announcement.date}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </SlideIn>
+      </div>
       {/* First row: stat cards in a responsive grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StaggeredContainer staggerDelay={100}>
@@ -244,7 +282,9 @@ const Dashboard = () => {
             </SlideIn>
           ))}
         </StaggeredContainer>
+        
       </div>
+      
       
       {/* Second row: 3-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -341,88 +381,7 @@ const Dashboard = () => {
       </div>
       
       {/* Third row: 2-column layout with expanded sections */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* New Team Members - Expanded */}
-        <SlideIn direction="up" delay={600}>
-          <Card className="h-full bg-white shadow-apple-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-              <CardTitle className="text-lg font-semibold">New Team Members</CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="text-hr-blue border-hr-blue hover:bg-hr-blue/5"
-                onClick={() => navigate('/employees')}
-              >
-                <span>View all</span>
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="px-4 py-4">
-              <div className="space-y-4">
-                {teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center p-3 rounded-lg hover:bg-hr-silver/5 transition-colors">
-                    <div className="mr-3 relative">
-                      <img
-                        src={member.avatar}
-                        alt={`${member.name}'s avatar`}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                      />
-                      <div className={cn(
-                        "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white",
-                        member.online ? "bg-green-500" : "bg-gray-400"
-                      )} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium">{member.name}</h4>
-                      <p className="text-xs text-hr-text-secondary">{member.position}</p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-hr-text-secondary h-8 w-8 p-0 rounded-full">
-                      <Mail className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </SlideIn>
-        
-        {/* Announcements - Expanded */}
-        <SlideIn direction="up" delay={700}>
-          <Card className="h-full bg-white shadow-apple-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-              <CardTitle className="text-lg font-semibold">Announcements</CardTitle>
-              <Button variant="ghost" size="sm" className="text-hr-blue">
-                All announcements
-              </Button>
-            </CardHeader>
-            <CardContent className="py-4">
-              {announcements.map(announcement => (
-                <div 
-                  key={announcement.id} 
-                  className="mb-4 pb-4 border-b border-hr-silver/10 last:border-0 last:pb-0 hover:bg-hr-silver/5 p-3 rounded-lg transition-colors"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start">
-                      <div className="bg-blue-50 p-2 rounded-lg mr-3">
-                        <BellRing className="h-4 w-4 text-hr-blue" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium">{announcement.title}</h4>
-                        <p className="text-xs text-hr-text-secondary mt-1">
-                          {announcement.description}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-medium bg-hr-silver/10 px-2 py-1 rounded-full text-hr-text-secondary">
-                      {announcement.date}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </SlideIn>
-      </div>
+
     </PageContainer>
   );
 };
