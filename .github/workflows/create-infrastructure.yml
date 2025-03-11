@@ -202,6 +202,31 @@ jobs:
         docker push ${FULL_ECR_REPOSITORY}:latest
         echo "image=${FULL_ECR_REPOSITORY}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
+    - name: Verify EC2 Instance State
+      run: |
+        MAX_RETRIES=12  # Maximum attempts
+        INSTANCE_ID="${{ env.APP_INSTANCE_ID }}"  # Instance ID
+        REGION="us-east-1"  # AWS region
+        COUNT=0
+
+        until [ "$INSTANCE_STATE" == "running" ] || [ "$COUNT" -ge "$MAX_RETRIES" ]; do
+            INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].State.Name" --output text)
+
+            if [ "$INSTANCE_STATE" == "running" ]; then
+                echo "✅ EC2 instance $INSTANCE_ID is now in a running state."
+                exit 0
+            fi
+
+            COUNT=$((COUNT+1))
+            echo "⏳ Attempt $COUNT/$MAX_RETRIES: EC2 instance $INSTANCE_ID is in '$INSTANCE_STATE' state. Waiting..."
+            sleep 5
+        done
+
+        # If instance is still not running after all retries
+        echo "::error::❌ EC2 instance $INSTANCE_ID did not reach 'running' state after $MAX_RETRIES attempts. Current state: $INSTANCE_STATE"
+        exit 1
+
+
     - name: Deploy to EC2 via SSM
       run: |
         # Verify we have the required values
