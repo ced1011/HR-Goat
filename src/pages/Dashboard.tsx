@@ -207,14 +207,7 @@ const Dashboard = () => {
   return (
     <PageContainer>
       <div className="space-y-1 mb-6">
-        <SlideIn direction="up" duration={400}>
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-            <div className="text-sm text-gray-700 bg-gray-100 px-3 py-1.5 rounded-full font-medium">
-              🔔 New Team Members and Announcements sections expanded on the right side of tiles
-            </div>
-          </div>
-        </SlideIn>
+
         <SlideIn direction="up" duration={400} delay={100}>
           <p className="text-gray-600">
             Welcome back! Here's what's happening today.
