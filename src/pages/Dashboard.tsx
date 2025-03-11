@@ -130,6 +130,18 @@ const Dashboard = () => {
       description: 'We\'ve updated our health benefits package for the upcoming year.',
       date: 'Jun 05',
     },
+    {
+      id: 3,
+      title: 'Office Closure',
+      description: 'The office will be closed on Monday for the national holiday.',
+      date: 'Jun 15',
+    },
+    {
+      id: 4,
+      title: 'Team Building Event',
+      description: 'Join us for team building activities next Thursday afternoon.',
+      date: 'Jun 20',
+    },
   ];
 
   // Performance data for visualization
@@ -141,12 +153,62 @@ const Dashboard = () => {
     { month: 'May', productivity: 92 },
     { month: 'Jun', productivity: 90 },
   ];
+
+  const teamMembers = [
+    {
+      id: 1,
+      name: 'Alex Morgan',
+      position: 'Product Designer',
+      avatar: 'https://randomuser.me/api/portraits/men/24.jpg',
+      online: true
+    },
+    {
+      id: 2,
+      name: 'Jamie Chen',
+      position: 'Software Engineer',
+      avatar: 'https://randomuser.me/api/portraits/women/25.jpg',
+      online: true
+    },
+    {
+      id: 3,
+      name: 'Taylor Swift',
+      position: 'Marketing Specialist',
+      avatar: 'https://randomuser.me/api/portraits/women/26.jpg',
+      online: true
+    },
+    {
+      id: 4,
+      name: 'Chris Brown',
+      position: 'UI/UX Designer',
+      avatar: 'https://randomuser.me/api/portraits/men/27.jpg',
+      online: false
+    },
+    {
+      id: 5,
+      name: 'Sarah Johnson',
+      position: 'HR Coordinator',
+      avatar: 'https://randomuser.me/api/portraits/women/28.jpg',
+      online: true
+    },
+    {
+      id: 6,
+      name: 'Michael Park',
+      position: 'Data Analyst',
+      avatar: 'https://randomuser.me/api/portraits/men/29.jpg',
+      online: false
+    }
+  ];
   
   return (
     <PageContainer>
       <div className="space-y-1 mb-6">
         <SlideIn direction="up" duration={400}>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+            <div className="text-sm text-hr-text-secondary bg-hr-silver/10 px-3 py-1.5 rounded-full">
+              🔔 New Team Members and Announcements sections expanded
+            </div>
+          </div>
         </SlideIn>
         <SlideIn direction="up" duration={400} delay={100}>
           <p className="text-hr-text-secondary">
@@ -184,9 +246,10 @@ const Dashboard = () => {
         </StaggeredContainer>
       </div>
       
-      {/* Second row: 2 equal-sized cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <FadeIn delay={400}>
+      {/* Second row: 3-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        {/* Performance Overview - 2 column wide */}
+        <FadeIn delay={400} className="lg:col-span-2">
           <Card className="h-full bg-white shadow-apple-sm">
             <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
               <CardTitle className="text-lg font-semibold">Performance Overview</CardTitle>
@@ -248,6 +311,7 @@ const Dashboard = () => {
           </Card>
         </FadeIn>
         
+        {/* Recent Activities */}
         <SlideIn direction="up" delay={500}>
           <Card className="h-full bg-white shadow-apple-sm">
             <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
@@ -276,9 +340,54 @@ const Dashboard = () => {
         </SlideIn>
       </div>
       
-      {/* Third row: 2 equal-sized cards */}
+      {/* Third row: 2-column layout with expanded sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* New Team Members - Expanded */}
         <SlideIn direction="up" delay={600}>
+          <Card className="h-full bg-white shadow-apple-sm">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <CardTitle className="text-lg font-semibold">New Team Members</CardTitle>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-hr-blue border-hr-blue hover:bg-hr-blue/5"
+                onClick={() => navigate('/employees')}
+              >
+                <span>View all</span>
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 py-4">
+              <div className="space-y-4">
+                {teamMembers.map((member) => (
+                  <div key={member.id} className="flex items-center p-3 rounded-lg hover:bg-hr-silver/5 transition-colors">
+                    <div className="mr-3 relative">
+                      <img
+                        src={member.avatar}
+                        alt={`${member.name}'s avatar`}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                      />
+                      <div className={cn(
+                        "absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white",
+                        member.online ? "bg-green-500" : "bg-gray-400"
+                      )} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">{member.name}</h4>
+                      <p className="text-xs text-hr-text-secondary">{member.position}</p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-hr-text-secondary h-8 w-8 p-0 rounded-full">
+                      <Mail className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </SlideIn>
+        
+        {/* Announcements - Expanded */}
+        <SlideIn direction="up" delay={700}>
           <Card className="h-full bg-white shadow-apple-sm">
             <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
               <CardTitle className="text-lg font-semibold">Announcements</CardTitle>
@@ -310,50 +419,6 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </SlideIn>
-        
-        <SlideIn direction="up" delay={700}>
-          <Card className="h-full bg-white shadow-apple-sm">
-            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-              <CardTitle className="text-lg font-semibold">New Team Members</CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="text-hr-blue border-hr-blue hover:bg-hr-blue/5"
-                onClick={() => navigate('/employees')}
-              >
-                <span>View all</span>
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="px-4 py-4">
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="flex items-center p-3 rounded-lg hover:bg-hr-silver/5 transition-colors">
-                    <div className="mr-3 relative">
-                      <img
-                        src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? 'men' : 'women'}/${24 + i}.jpg`}
-                        alt="Employee avatar"
-                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                      />
-                      <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium">
-                        {['Alex Morgan', 'Jamie Chen', 'Taylor Swift'][i]}
-                      </h4>
-                      <p className="text-xs text-hr-text-secondary">
-                        {['Product Designer', 'Software Engineer', 'Marketing Specialist'][i]}
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-hr-text-secondary h-8 w-8 p-0 rounded-full">
-                      <Mail className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </SlideIn>
