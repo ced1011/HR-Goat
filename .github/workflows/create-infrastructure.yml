@@ -221,9 +221,7 @@ jobs:
           DB_HOST=$(echo "${{ env.RDS_HOST }}" | cut -d: -f1)
         fi
         
-        # Wait for EC2 instance to be ready
-        echo "Waiting for EC2 instance to be ready..."
-        aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
+
         
         # Deploy using SSM with multiple separate commands
         aws ssm send-command \
