@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { getDefaultAvatar } from '@/lib/utils';
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -227,7 +228,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar, isSidebarOpen }) => {
                 aria-label="User menu"
               >
                 <img
-                  src="https://randomuser.me/api/portraits/men/32.jpg"
+                  src={getDefaultAvatar("https://randomuser.me/api/portraits/men/32.jpg", "John Doe")}
                   alt="User profile"
                   className="h-full w-full object-cover"
                 />

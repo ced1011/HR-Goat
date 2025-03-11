@@ -1,9 +1,9 @@
-
 import React from 'react';
 import { Phone, Mail, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../ui-custom/Card';
 import { FadeIn } from '../ui-custom/Animations';
+import { getDefaultAvatar } from '@/lib/utils';
 
 interface EmployeeCardProps {
   id: number;
@@ -41,7 +41,7 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({
           <div className="flex items-start mb-4">
             <div className="relative mr-4">
               <img
-                src={avatar}
+                src={getDefaultAvatar(avatar, name)}
                 alt={name}
                 className="w-16 h-16 rounded-lg object-cover shadow-sm"
               />

@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:80', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:3000'],
+  origin: ['http://localhost', 'http://localhost:80', 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -130,7 +130,7 @@ async function initializeDatabase() {
       for (const statement of statements) {
         try {
           await connection.execute(statement);
-        } catch (error) {
+} catch (error) {
           console.error(`Error executing statement: ${statement.substring(0, 50)}...`, error.message);
           // Continue with other statements even if one fails
         }
@@ -284,7 +284,7 @@ app.post('/api/run-mock-data-script', async (req, res) => {
       
       for (const statement of mockDataStatements) {
         try {
-          await connection.execute(statement);
+        await connection.execute(statement);
         } catch (statementError) {
           console.warn(`Warning: Error executing statement: ${statementError.message}`);
           console.warn('Continuing with next statement...');
@@ -456,8 +456,6 @@ app.post('/api/auth/login', async (req, res) => {
     });
   }
 });
-
-
 
 // Authentication middleware
 const authenticateUser = async (req, res, next) => {
@@ -1133,6 +1131,38 @@ app.delete('/api/bank-accounts/:id', async (req, res) => {
   }
 });
 
+// Helper function to generate default avatar URL for employees
+function getDefaultAvatarUrl(employee) {
+  if (employee.avatar && employee.avatar.trim() !== '') {
+    return employee.avatar;
+  }
+  
+  // If name is provided, generate a UI Avatar with initials
+  if (employee.name) {
+    // Extract initials (up to 2 characters)
+    const initials = employee.name
+      .split(' ')
+      .map(part => part.charAt(0))
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+    
+    // Generate a consistent color based on the name
+    const colors = [
+      '1abc9c', '2ecc71', '3498db', '9b59b6', '34495e',
+      'f1c40f', 'e67e22', 'e74c3c', 'ecf0f1', '95a5a6'
+    ];
+    const colorIndex = employee.name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length;
+    const backgroundColor = colors[colorIndex];
+    
+    // Return UI Avatars URL
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=${backgroundColor}&color=fff&size=128`;
+  }
+  
+  // Fallback to static default avatar
+  return '/default-avatar.png';
+}
+
 // Employee Endpoints
 // Get all employees
 app.get('/api/employees', async (req, res) => {
@@ -1153,7 +1183,10 @@ app.get('/api/employees', async (req, res) => {
         email: employee.email,
         phone: employee.phone || '',
         location: employee.location || '',
-        avatar: employee.avatar || '',
+        avatar: getDefaultAvatarUrl({
+          name: employee.name,
+          avatar: employee.avatar
+        }),
         hireDate: employee.hire_date,
         status: employee.status,
         manager: employee.manager || '',
@@ -1207,7 +1240,10 @@ app.get('/api/employees/:id', async (req, res) => {
         email: employee.email,
         phone: employee.phone || '',
         location: employee.location || '',
-        avatar: employee.avatar || '',
+        avatar: getDefaultAvatarUrl({
+          name: employee.name,
+          avatar: employee.avatar
+        }),
         hireDate: employee.hire_date,
         status: employee.status,
         manager: employee.manager || '',
@@ -1305,7 +1341,10 @@ app.put('/api/employees/:id', async (req, res) => {
         email: employee.email,
         phone: employee.phone || '',
         location: employee.location || '',
-        avatar: employee.avatar || '',
+        avatar: getDefaultAvatarUrl({
+          name: employee.name,
+          avatar: employee.avatar
+        }),
         hireDate: employee.hire_date,
         status: employee.status,
         manager: employee.manager || '',

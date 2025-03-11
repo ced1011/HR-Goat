@@ -24,6 +24,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getDefaultAvatar } from '@/lib/utils';
 
 const ProfilePage = () => {
   const { id } = useParams<{ id: string }>();
@@ -125,7 +126,7 @@ const ProfilePage = () => {
             <div className="flex flex-col md:flex-row items-center -mt-16 md:-mt-12">
               <div className="relative">
                 <img
-                  src={employee.avatar}
+                  src={getDefaultAvatar(employee.avatar, employee.name)}
                   alt={employee.name}
                   className="w-32 h-32 rounded-xl object-cover shadow-apple-md border-4 border-white"
                 />
