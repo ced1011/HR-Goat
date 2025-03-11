@@ -88,20 +88,34 @@ jobs:
       run: |
         cd terraform
         
-        # Export required output values
-        echo "app_instance_id=$(terraform output -raw app_instance_id 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
-        echo "rds_endpoint=$(terraform output -raw rds_endpoint 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
-        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
-        echo "alb_dns_name=$(terraform output -raw alb_dns_name 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
-        echo "app_alb_url=$(terraform output -raw app_alb_url 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+        # Clean Terraform outputs before storing them
+        clean_output() {
+          local output_value
+          output_value=$(terraform output -raw "$1" 2>/dev/null || echo "")
+          echo "$output_value" | sed 's/::debug::.*//g'
+        }
+    
+        # Export values after stripping unwanted debug messages
+        echo "app_instance_id=$(clean_output app_instance_id)" >> $GITHUB_ENV
+        echo "rds_endpoint=$(clean_output rds_endpoint)" >> $GITHUB_ENV
+        echo "ecr_repository_url=$(clean_output ecr_repository_url)" >> $GITHUB_ENV
+        echo "alb_dns_name=$(clean_output alb_dns_name)" >> $GITHUB_ENV
+        echo "app_alb_url=$(clean_output app_alb_url)" >> $GITHUB_ENV
+    
+        echo "app_instance_id=$(clean_output app_instance_id)" >> $GITHUB_OUTPUT
+        echo "rds_endpoint=$(clean_output rds_endpoint)" >> $GITHUB_OUTPUT
+        echo "ecr_repository_url=$(clean_output ecr_repository_url)" >> $GITHUB_OUTPUT
+        echo "alb_dns_name=$(clean_output alb_dns_name)" >> $GITHUB_OUTPUT
+        echo "app_alb_url=$(clean_output app_alb_url)" >> $GITHUB_OUTPUT
         
-        # Debugging output values to check correctness
+        # Debugging outputs
         echo "Captured outputs:"
-        echo "app_instance_id: $(terraform output -raw app_instance_id 2>/dev/null || echo 'Not available')"
-        echo "rds_endpoint: $(terraform output -raw rds_endpoint 2>/dev/null || echo 'Not available')"
-        echo "ecr_repository_url: $(terraform output -raw ecr_repository_url 2>/dev/null || echo 'Not available')"
-        echo "alb_dns_name: $(terraform output -raw alb_dns_name 2>/dev/null || echo 'Not available')"
-        echo "app_alb_url: $(terraform output -raw app_alb_url 2>/dev/null || echo 'Not available')"
+        echo "app_instance_id: $(clean_output app_instance_id)"
+        echo "rds_endpoint: $(clean_output rds_endpoint)"
+        echo "ecr_repository_url: $(clean_output ecr_repository_url)"
+        echo "alb_dns_name: $(clean_output alb_dns_name)"
+        echo "app_alb_url: $(clean_output app_alb_url)"
+      
 
   build-and-deploy:
     name: 'Build and Deploy Application'
