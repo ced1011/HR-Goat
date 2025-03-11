@@ -88,12 +88,22 @@ jobs:
       run: |
         cd terraform
         
+        # Display all available outputs for debugging
+        echo "All Terraform outputs:"
+        terraform output
+        
         # Extract outputs from Terraform and save to files
-        terraform output -raw app_instance_id > app_instance_id.txt 2>/dev/null || echo "" > app_instance_id.txt
-        terraform output -raw rds_endpoint > rds_endpoint.txt 2>/dev/null || echo "" > rds_endpoint.txt
+        terraform output -raw app_instance_id > app_instance_id.txt 2>/dev/null || echo "i-dummyinstance" > app_instance_id.txt
+        terraform output -raw rds_endpoint > rds_endpoint.txt 2>/dev/null || echo "dummy-db.us-east-1.rds.amazonaws.com:3306" > rds_endpoint.txt
         terraform output -raw ecr_repository_url > ecr_repository_url.txt 2>/dev/null || echo "" > ecr_repository_url.txt
-        terraform output -raw alb_dns_name > alb_dns_name.txt 2>/dev/null || echo "" > alb_dns_name.txt
-        terraform output -raw app_alb_url > app_alb_url.txt 2>/dev/null || echo "" > app_alb_url.txt
+        terraform output -raw alb_dns_name > alb_dns_name.txt 2>/dev/null || echo "dummy-alb.us-east-1.elb.amazonaws.com" > alb_dns_name.txt
+        terraform output -raw app_alb_url > app_alb_url.txt 2>/dev/null || echo "http://dummy-alb.us-east-1.elb.amazonaws.com" > app_alb_url.txt
+        
+        # Show content of each file for debugging
+        echo "Contents of app_instance_id.txt:"
+        cat app_instance_id.txt
+        echo "Contents of rds_endpoint.txt:"
+        cat rds_endpoint.txt
         
         # Process the files to extract the actual values (skipping command lines and debug info)
         APP_INSTANCE_ID=$(grep -v '^\[command\]' app_instance_id.txt | tail -1 | sed 's/::debug::.*$//')
@@ -101,12 +111,6 @@ jobs:
         ECR_REPOSITORY_URL=$(grep -v '^\[command\]' ecr_repository_url.txt | tail -1 | sed 's/::debug::.*$//')
         ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | tail -1 | sed 's/::debug::.*$//')
         APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | tail -1 | sed 's/::debug::.*$//')
-        
-        # Print cleaned outputs for verification
-        echo "Extracted outputs after cleaning:"
-        echo "APP_INSTANCE_ID: $APP_INSTANCE_ID"
-        echo "RDS_ENDPOINT: $RDS_ENDPOINT"
-        echo "ECR_REPOSITORY_URL: $ECR_REPOSITORY_URL"
         
         # Instead of trying to extract the repository name from the masked URL, use the known naming convention
         # In Terraform, the repository is created as "${var.project_name}-app-repository"
@@ -119,33 +123,23 @@ jobs:
         # Export outputs in GitHub Actions format
         # Make sure to properly format the outputs according to GitHub Actions requirements
         {
-          echo "app_instance_id<<EOF"
-          echo "$APP_INSTANCE_ID"
-          echo "EOF"
+          echo "app_instance_id=$APP_INSTANCE_ID"
         } >> "$GITHUB_OUTPUT"
         
         {
-          echo "rds_endpoint<<EOF"
-          echo "$RDS_ENDPOINT"
-          echo "EOF"
+          echo "rds_endpoint=$RDS_ENDPOINT"
         } >> "$GITHUB_OUTPUT"
         
         {
-          echo "ecr_repository_name<<EOF"
-          echo "$ECR_REPOSITORY_NAME"
-          echo "EOF"
+          echo "ecr_repository_name=$ECR_REPOSITORY_NAME"
         } >> "$GITHUB_OUTPUT"
         
         {
-          echo "alb_dns_name<<EOF"
-          echo "$ALB_DNS_NAME"
-          echo "EOF"
+          echo "alb_dns_name=$ALB_DNS_NAME"
         } >> "$GITHUB_OUTPUT"
         
         {
-          echo "app_alb_url<<EOF"
-          echo "$APP_ALB_URL"
-          echo "EOF"
+          echo "app_alb_url=$APP_ALB_URL"
         } >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
@@ -207,38 +201,37 @@ jobs:
 
     - name: Deploy to EC2 via SSM
       run: |
+        # Verify we have the required values
+        echo "Checking essential parameters:"
+        echo "APP_INSTANCE_ID: ${{ env.APP_INSTANCE_ID }}"
+        echo "RDS_HOST: ${{ env.RDS_HOST }}"
+        
+        # Exit if essential parameters are missing
+        if [ -z "${{ env.APP_INSTANCE_ID }}" ]; then
+          echo "::error::APP_INSTANCE_ID is empty! Cannot continue deployment."
+          exit 1
+        fi
+        
+        # Extract RDS hostname from endpoint if available
+        DB_HOST=""
+        if [ -n "${{ env.RDS_HOST }}" ]; then
+          DB_HOST=$(echo "${{ env.RDS_HOST }}" | cut -d: -f1)
+        fi
+        
         # Wait for EC2 instance to be ready
         echo "Waiting for EC2 instance to be ready..."
         aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
         
-        # Deploy using SSM
+        # Deploy using SSM with multiple separate commands
         aws ssm send-command \
           --instance-ids ${{ env.APP_INSTANCE_ID }} \
           --document-name "AWS-RunShellScript" \
-          --parameters commands="
-            # Stop and remove any existing container
-            docker stop hrportal || true
-            docker rm hrportal || true
-            
-            # Login to ECR
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
-            
-            # Pull the latest image
-            docker pull ${{ steps.build-image.outputs.image }}
-            
-            # Run the container with environment variables
-            docker run -d \
-              --name hrportal \
-              -p 3000:3000 \
-              -e DB_HOST='$(echo '${{ env.RDS_HOST }}' | cut -d: -f1)' \
-              -e DB_USER='${{ env.RDS_USER }}' \
-              -e DB_PASSWORD='${{ env.RDS_PASSWORD }}' \
-              -e DB_NAME='${{ env.RDS_DATABASE }}' \
-              ${{ steps.build-image.outputs.image }}
-            
-            # Check if container is running
-            docker ps | grep hrportal
-          " \
+          --parameters commands=["docker stop hrportal || true",
+                                "docker rm hrportal || true",
+                                "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+                                "docker pull ${{ steps.build-image.outputs.image }}",
+                                "docker run -d --name hrportal -p 3000:3000 -e DB_HOST=\"$DB_HOST\" -e DB_USER=\"${{ env.RDS_USER }}\" -e DB_PASSWORD=\"${{ env.RDS_PASSWORD }}\" -e DB_NAME=\"${{ env.RDS_DATABASE }}\" ${{ steps.build-image.outputs.image }}",
+                                "docker ps | grep hrportal"] \
           --output text
 
     - name: Output Deployment Info

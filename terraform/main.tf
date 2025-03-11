@@ -425,6 +425,7 @@ resource "aws_db_instance" "hrgoat_db" {
 # ECR repository
 resource "aws_ecr_repository" "app_repository" {
   name = "${var.project_name}-app-repository"
+  force_delete = true
   
   tags = var.common_tags
 }
