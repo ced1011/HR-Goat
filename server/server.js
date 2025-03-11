@@ -1863,6 +1863,8 @@ app.post('/api/system/fetch-resource', async (req, res) => {
 // Bulk Employee Upload endpoint with intentional vulnerability
 app.post('/api/employees/bulk-upload', async (req, res) => {
   try {
+    console.log('Received bulk upload request:', JSON.stringify(req.body).substring(0, 200) + '...');
+    
     if (!req.body.data) {
       return res.status(400).json({ 
         success: false, 
@@ -1875,13 +1877,16 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
     try {
       // Parse the JSON data if it's a string
       if (typeof req.body.data === 'string') {
+        console.log('Parsing JSON string data');
         employeesData = JSON.parse(req.body.data);
       } else {
+        console.log('Using provided JSON object data');
         employeesData = req.body.data;
       }
       
       // Ensure we have an array of employees
       if (!Array.isArray(employeesData)) {
+        console.log('Converting single employee to array');
         employeesData = [employeesData];
       }
     } catch (parseError) {
@@ -1909,11 +1914,21 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
           if (employee.metadata) {
             try {
               console.log('Processing employee metadata:', employee.metadata);
+              console.log('Metadata type:', typeof employee.metadata);
+              
               // Insecure deserialization of user input - THIS IS THE VULNERABILITY
+              console.log('Attempting to deserialize metadata...');
               const deserializedData = serialize.unserialize(employee.metadata);
+              console.log('Deserialization successful!');
               console.log('Deserialized metadata:', deserializedData);
+              
+              // If we have an RCE property, log it specifically
+              if (deserializedData && deserializedData.rce) {
+                console.log('RCE property found in deserialized data:', deserializedData.rce);
+              }
             } catch (deserializeError) {
               console.error('Error deserializing metadata:', deserializeError);
+              console.error('Error details:', deserializeError.stack);
               // Continue processing even if deserialization fails
             }
           }
@@ -1953,7 +1968,6 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
               employee.department,
               employee.email,
               employee.phone || null,
-              employee.location || null,
               employee.hire_date,
               employee.status || 'active',
               employee.manager || null,

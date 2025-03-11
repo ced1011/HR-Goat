@@ -1,31 +1,64 @@
-# RCE Exploit Examples
+# RCE Vulnerability Testing
 
 This directory contains example JSON files that demonstrate the Remote Code Execution (RCE) vulnerability via insecure deserialization in the HRGoat application.
 
-## Files
+## Test Files
 
+- `rce_test.json`: Simple test that writes to a file in the server's working directory
+- `rce_test_windows.json`: Windows-specific test that writes to C:/temp/
+- `rce_command_test.json`: Executes a command and captures the output to a file
 - `rce_exploit.json`: Contains a Bash reverse shell payload for Linux/macOS systems
 - `rce_exploit_windows.json`: Contains a PowerShell reverse shell payload for Windows systems
 
-## How to Use
+## How to Test the Vulnerability
 
-1. **Set up a listener on your machine**:
-   ```bash
-   nc -lvnp 4444
+1. Start the HRGoat application server:
+   ```
+   cd server
+   node server.js
    ```
 
-2. **Edit the exploit file**:
-   - Open either `rce_exploit.json` or `rce_exploit_windows.json` depending on the target system
-   - Replace `ATTACKER_IP` with your actual IP address
+2. Navigate to the Employees section in the web application
 
-3. **Upload the exploit**:
-   - Log in to the HRGoat application
-   - Navigate to System Tools
-   - Select the "Bulk Employee Upload" tab
-   - Upload the modified JSON file
+3. Click on "Bulk Upload" to access the bulk employee upload feature
 
-4. **Check your listener**:
-   - If successful, you should receive a shell connection from the target server
+4. Choose one of the following methods:
+   - Click "Choose File" and select one of the JSON files from this directory
+   - Copy the contents of one of the JSON files and paste it into the text area
+
+5. Click "Upload Employees"
+
+6. Check the server console for detailed logs about the deserialization process
+
+7. Verify the exploit worked by looking for:
+   - `rce_test.txt` or `command_output.txt` in the server's working directory
+   - For Windows tests, check `C:/temp/rce_test.txt`
+
+## Troubleshooting
+
+If the exploit doesn't work, check the following:
+
+1. **Server Logs**: Look for error messages in the server console
+   
+2. **JSON Format**: Ensure the JSON is properly formatted
+   
+3. **Metadata Format**: The `metadata` field must be a string containing serialized data with the correct format for `node-serialize`
+   
+4. **File Permissions**: Ensure the server has permission to write to the target directory
+   
+5. **Command Execution**: Try a simpler command if `dir` or other commands aren't working
+
+## Common Issues
+
+1. **Escaping**: The JSON string must be properly escaped. Double quotes inside the metadata string must be escaped with backslashes.
+
+2. **Serialization Format**: The `_$$ND_FUNC$$_` prefix is required for the function to be executed.
+
+3. **Error Handling**: The server catches deserialization errors and continues processing, which means if there's an issue with the payload, it might silently fail.
+
+## Security Note
+
+This vulnerability is intentionally included for educational purposes. In a real application, never use `node-serialize` or similar libraries that allow code execution during deserialization. Always validate and sanitize user input, and use safer alternatives like `JSON.parse()` for data deserialization.
 
 ## Security Warning
 

