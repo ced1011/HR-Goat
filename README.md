@@ -1,69 +1,83 @@
-# Welcome to your Lovable project
+# HRGoat HR Management Portal
 
-## Project info
+This repository contains the HRGoat HR Management Portal application, a comprehensive HR management system with features for employee management, document handling, calendar events, and more.
 
-**URL**: https://lovable.dev/projects/6a64d223-6582-4640-aeb7-f1adbd88e0b1
+## Repository Structure
 
-## How can I edit this code?
+- **`/src`**: Frontend application code (React)
+- **`/server`**: Backend server code (Node.js/Express)
+- **`/terraform`**: Infrastructure as Code for AWS deployment
+- **`/.github/workflows`**: CI/CD pipelines for automated deployment
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- Employee management
+- Document management
+- Calendar events
+- Payroll & benefits
+- Performance tracking
+- User authentication
+- Profile management
+- Notifications
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6a64d223-6582-4640-aeb7-f1adbd88e0b1) and start prompting.
+## Development Setup
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js (v16 or newer)
+- npm (v7 or newer)
+- MySQL database
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Local Development
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository:
 
-Follow these steps:
+```bash
+git clone https://github.com/your-username/hr-portal-symphony.git
+cd hr-portal-symphony
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+2. Install dependencies:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Start the development server:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+4. In a separate terminal, start the backend server:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+cd server
+node server.js
+```
 
-**Use GitHub Codespaces**
+## Deployment
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Manual Deployment
 
-## What technologies are used for this project?
+See the [terraform/README.md](terraform/README.md) file for instructions on manual deployment using Terraform.
 
-This project is built with .
+### Automated Deployment with GitHub Actions
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+This repository includes GitHub Actions workflows for automated deployment:
 
-## How can I deploy this project?
+1. **Infrastructure Deployment**: Deploys AWS infrastructure using Terraform
+2. **Application Deployment**: Deploys the application to the EC2 instance
+3. **Infrastructure Destruction**: Safely destroys the AWS infrastructure when needed
 
-Simply open [Lovable](https://lovable.dev/projects/6a64d223-6582-4640-aeb7-f1adbd88e0b1) and click on Share -> Publish.
+For more information on setting up the required GitHub secrets, see [.github/GITHUB_SECRETS.md](.github/GITHUB_SECRETS.md).
 
-## I want to use a custom domain - is that possible?
+## Security Considerations
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+- The application includes intentional vulnerabilities for educational purposes
+- Do not use in production without addressing these vulnerabilities
+- See comments in the code marked with "VULNERABLE CODE" for details
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

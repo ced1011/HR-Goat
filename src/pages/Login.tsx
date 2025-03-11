@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,39 @@ import { Triangle, Circle, Square, Hexagon, Database, Layers, Users, Lock } from
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
+  
+  useEffect(() => {
+    console.log('\n[AUTH-UI] Login page mounted');
+    
+    // Check if already authenticated
+    if (isAuthenticated) {
+      console.log('[AUTH-UI] User already authenticated, should redirect');
+    }
+    
+    return () => {
+      console.log('[AUTH-UI] Login page unmounted');
+    };
+  }, [isAuthenticated]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setCredentials(prev => ({ ...prev, [name]: value }));
+    console.log(`[AUTH-UI] Login form field "${name}" changed`);
   };
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login(credentials);
+    console.log('\n[AUTH-UI] Login form submitted:', { 
+      username: credentials.username,
+      passwordLength: credentials.password.length,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('[AUTH-UI] Calling login function from AuthContext');
+    const success = await login(credentials);
+    
+    console.log(`[AUTH-UI] Login attempt ${success ? 'succeeded' : 'failed'}`);
   };
   
   return (
@@ -118,8 +141,7 @@ const Login = () => {
               <div className="text-sm text-center text-gray-500">
                 <span>Demo credentials:</span>
                 <ul className="mt-1">
-                  <li>Username: admin, Password: password123</li>
-                  <li>Username: johndoe, Password: password123</li>
+                  <li>Username: admin, Password: admin123</li>
                 </ul>
               </div>
             </CardFooter>

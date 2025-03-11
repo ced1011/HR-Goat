@@ -104,6 +104,18 @@ async function initializeDatabase() {
         )
       `);
       
+      // Create Notifications table
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          message TEXT NOT NULL,
+          is_read BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+      
       // Read the setup script
       const setupScriptPath = path.join(__dirname, '..', 'src', 'lib', 'sql', 'setup-database.sql');
       const setupScript = fs.readFileSync(setupScriptPath, 'utf8');
@@ -279,6 +291,32 @@ app.post('/api/run-mock-data-script', async (req, res) => {
         }
       }
       
+      // Add mock notifications
+      try {
+        console.log('Adding mock notifications...');
+        
+        // First, check if we have any users
+        const [users] = await connection.query('SELECT id FROM users LIMIT 5');
+        
+        if (users.length > 0) {
+          // Add some mock notifications for each user
+          for (const user of users) {
+            await connection.query(`
+              INSERT INTO notifications (user_id, message, is_read, created_at)
+              VALUES 
+                (?, 'Welcome to HRGoat! Get started by completing your profile.', false, NOW()),
+                (?, 'New document has been shared with you.', false, NOW()),
+                (?, 'Your vacation request has been approved.', true, DATE_SUB(NOW(), INTERVAL 2 DAY))
+            `, [user.id, user.id, user.id]);
+          }
+          
+          console.log('Mock notifications added successfully');
+        }
+      } catch (error) {
+        console.error('Error adding mock notifications:', error);
+        // Continue with other mock data even if notifications fail
+      }
+      
       res.json({ 
         success: true, 
         message: 'Mock data inserted successfully' 
@@ -338,51 +376,55 @@ app.get('/api/database-stats', async (req, res) => {
 
 // Authentication endpoint
 app.post('/api/auth/login', async (req, res) => {
+  console.log('\n[AUTH-BACKEND] Login attempt received:', { 
+    username: req.body.username,
+    timestamp: new Date().toISOString(),
+    ip: req.ip,
+    userAgent: req.headers['user-agent']
+  });
+
   try {
     const { username, password } = req.body;
-    
+
     if (!username || !password) {
+      console.log('[AUTH-BACKEND] Login failed: Missing username or password');
       return res.status(400).json({
         success: false,
         message: 'Username and password are required'
       });
     }
-    
+
     const connection = await pool.getConnection();
-    
+
     try {
-      // VULNERABLE CODE: Using string concatenation instead of parameterized queries
-      // This is vulnerable to SQL injection attacks
-      // DO NOT USE THIS IN PRODUCTION - FOR EDUCATIONAL PURPOSES ONLY
-      const query = `SELECT id, username, email, role, employee_id, password_hash FROM users WHERE username = '${username}'`;
+      // VULNERABLE QUERY: Directly inserting user input into SQL
+      const query = `SELECT id, username, email, role, employee_id FROM users WHERE username = '${username}' AND password_hash = '${password}'`;
       
-      console.log('Executing query:', query); // Log the query for demonstration
-      
+      console.log('[AUTH-BACKEND] Executing query:', query); // Log the query for demonstration
+
       const [users] = await connection.query(query);
-      
+      console.log('[AUTH-BACKEND] Query result:', users);
+
       if (users.length === 0) {
+        console.log('[AUTH-BACKEND] Login failed: Invalid username or password');
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password'
         });
       }
-      
+
       const user = users[0];
-      
-      // In a real application, you would verify the password hash here
-      // For demo purposes, we'll accept the password as-is (never do this in production!)
-      // This is just for demonstration purposes
-      if (password !== 'password123' && password !== 'admin123' && password !== 'jdoe123') {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid username or password'
-        });
-      }
-      
-      // Update last login timestamp - also vulnerable
+      console.log('[AUTH-BACKEND] User authenticated:', { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role 
+      });
+
+      // Update last login timestamp (still vulnerable)
       const updateQuery = `UPDATE users SET last_login = NOW() WHERE id = ${user.id}`;
       await connection.query(updateQuery);
-      
+      console.log('[AUTH-BACKEND] Updated last login timestamp for user:', user.id);
+
       // Return user data (excluding password)
       const userData = {
         id: user.id,
@@ -391,7 +433,13 @@ app.post('/api/auth/login', async (req, res) => {
         role: user.role,
         employeeId: user.employee_id
       };
-      
+
+      console.log('[AUTH-BACKEND] Login successful:', { 
+        userId: userData.id, 
+        username: userData.username, 
+        role: userData.role 
+      });
+
       res.json({
         success: true,
         message: 'Login successful',
@@ -401,11 +449,122 @@ app.post('/api/auth/login', async (req, res) => {
       connection.release();
     }
   } catch (error) {
-    console.error('Login failed:', error);
+    console.error('[AUTH-BACKEND] Login error:', error);
     res.status(500).json({
       success: false,
       message: 'An error occurred during login'
     });
+  }
+});
+
+
+
+// Authentication middleware
+const authenticateUser = async (req, res, next) => {
+  console.log('\n[AUTH-BACKEND] Authentication middleware called:', {
+    path: req.path,
+    method: req.method,
+    userId: req.headers['user-id'] || req.query.userId || 'not provided',
+    timestamp: new Date().toISOString()
+  });
+  
+  // For demo purposes, we'll use a simple approach
+  // In a real application, you would verify a JWT token here
+  
+  // Get the user ID from the request headers or query parameters
+  const userId = req.headers['user-id'] || req.query.userId;
+  
+  if (!userId) {
+    console.log('[AUTH-BACKEND] Authentication failed: No user ID provided');
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  try {
+    const connection = await pool.getConnection();
+    try {
+      console.log('[AUTH-BACKEND] Looking up user with ID:', userId);
+      const [users] = await connection.query('SELECT id, username, email, role FROM users WHERE id = ?', [userId]);
+      
+      if (users.length === 0) {
+        console.log('[AUTH-BACKEND] Authentication failed: Invalid user ID');
+        return res.status(401).json({ message: 'Invalid user' });
+      }
+      
+      // Attach the user to the request object
+      req.user = users[0];
+      console.log('[AUTH-BACKEND] Authentication successful:', { 
+        userId: req.user.id, 
+        username: req.user.username, 
+        role: req.user.role 
+      });
+      next();
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('[AUTH-BACKEND] Authentication error:', error);
+    res.status(500).json({ message: 'Authentication error' });
+  }
+};
+
+// Profile endpoint
+app.get('/api/profile', authenticateUser, async (req, res) => {
+  console.log('\n[AUTH-BACKEND] Profile request for user:', {
+    userId: req.user.id,
+    username: req.user.username,
+    timestamp: new Date().toISOString()
+  });
+  
+  try {
+    res.json(req.user);
+    console.log('[AUTH-BACKEND] Profile data sent successfully');
+  } catch (error) {
+    console.error('[AUTH-BACKEND] Profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Logout endpoint
+app.post('/api/logout', (req, res) => {
+  console.log('\n[AUTH-BACKEND] Logout request received:', {
+    userId: req.headers['user-id'] || 'unknown',
+    timestamp: new Date().toISOString()
+  });
+  
+  res.clearCookie('token'); // Assuming JWT stored in cookie
+  console.log('[AUTH-BACKEND] Token cookie cleared');
+  
+  res.json({ message: 'Logged out successfully' });
+  console.log('[AUTH-BACKEND] Logout successful');
+});
+
+// Notifications endpoints
+app.get('/api/notifications', authenticateUser, async (req, res) => {
+  try {
+    const [notifications] = await pool.query('SELECT * FROM notifications WHERE user_id = ?', [req.user.id]);
+    res.json(notifications);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put('/api/notifications/:id', authenticateUser, async (req, res) => {
+  const notificationId = req.params.id;
+  try {
+    await pool.query('UPDATE notifications SET is_read = true WHERE id = ? AND user_id = ?', [notificationId, req.user.id]);
+    res.json({ message: 'Notification marked as read' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.delete('/api/notifications/:id', authenticateUser, async (req, res) => {
+  const notificationId = req.params.id;
+  try {
+    await pool.query('DELETE FROM notifications WHERE id = ? AND user_id = ?', [notificationId, req.user.id]);
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -567,13 +726,13 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           employeeId || null,
-          documentType || 'general',
+          documentType,
           req.file.filename,
           req.file.originalname,
           relativePath,
           req.file.size,
           req.file.mimetype,
-          description || ''
+          description || null
         ]
       );
       
@@ -587,7 +746,7 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
       console.log('Document uploaded:', {
         id: result.insertId,
         employeeId: employeeId || null,
-        documentType: documentType || 'general',
+        documentType: documentType,
         fileName: req.file.filename,
         originalName: req.file.originalname,
         filePath: relativePath,
@@ -604,7 +763,7 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
         document: {
           id: result.insertId,
           employeeId: employeeId || null,
-          documentType: documentType || 'general',
+          documentType: documentType,
           fileName: req.file.filename,
           originalName: req.file.originalname,
           filePath: relativePath,
@@ -1795,7 +1954,7 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
               employee.email,
               employee.phone || null,
               employee.location || null,
-              employee.hire_date || new Date().toISOString().split('T')[0],
+              employee.hire_date,
               employee.status || 'active',
               employee.manager || null,
               employee.salary || null,

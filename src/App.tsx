@@ -16,6 +16,8 @@ import Documents from './pages/Documents';
 import SystemTools from './pages/SystemTools';
 import Calendar from './pages/Calendar';
 import Reports from './pages/Reports';
+import ProfilePage from './pages/ProfilePage';
+import NotificationPage from './pages/NotificationPage';
 
 import { Toaster } from './components/ui/sonner';
 import { AuthProvider } from './contexts/AuthContext';
@@ -60,6 +62,8 @@ function App() {
                       <Route path="/reports" element={<Reports />} />
                       <Route path="/database-setup" element={<DatabaseSetup />} />
                       <Route path="/system-tools" element={<SystemTools />} />
+                      <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="/notifications" element={<NotificationPage />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </ProtectedRoute>
