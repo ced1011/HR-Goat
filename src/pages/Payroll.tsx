@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import PageContainer from '@/components/layout/PageContainer';
@@ -18,7 +17,7 @@ import {
   Briefcase,
   Calendar
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, safeToast } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
 const PayrollPage = () => {
@@ -29,48 +28,139 @@ const PayrollPage = () => {
   const [benefits, setBenefits] = useState<EmployeeBenefit[]>([]);
   const [taxDocuments, setTaxDocuments] = useState<TaxDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         
-        let employeeId: number;
+        let employeeId: number | undefined;
+        let employeeData: Employee | null = null;
         
+        // Step 1: Get employee data
         if (!id) {
           // If no ID is provided, we're viewing the current user's profile
-          // For demo purposes, we'll just use the first employee
-          const allEmployees = await apiService.getEmployees();
-          if (allEmployees.error) throw new Error(allEmployees.error);
+          console.log("No ID provided, fetching all employees");
+          const allEmployeesResponse = await apiService.getEmployees();
           
-          setEmployee(allEmployees.data[0]);
-          employeeId = allEmployees.data[0].id;
+          console.log("All employees response:", allEmployeesResponse);
+          
+          if (allEmployeesResponse.error) {
+            console.error("Error fetching employees:", allEmployeesResponse.error);
+            setError(`Failed to fetch employees: ${allEmployeesResponse.error}`);
+            setIsLoading(false);
+            return;
+          }
+          
+          if (!Array.isArray(allEmployeesResponse.data) || allEmployeesResponse.data.length === 0) {
+            console.error("No employees found in response");
+            setError("No employees found in the database");
+            setIsLoading(false);
+            return;
+          }
+          
+          employeeData = allEmployeesResponse.data[0];
+          console.log("Selected first employee:", employeeData);
         } else {
-          const response = await apiService.getEmployeeById(Number(id));
-          if (response.error) throw new Error(response.error);
+          // If ID is provided, fetch that specific employee
+          console.log(`Fetching employee with ID: ${id}`);
+          const employeeResponse = await apiService.getEmployeeById(Number(id));
           
-          setEmployee(response.data);
-          employeeId = response.data.id;
+          console.log("Employee response:", employeeResponse);
+          
+          if (employeeResponse.error) {
+            console.error("Error fetching employee:", employeeResponse.error);
+            setError(`Failed to fetch employee: ${employeeResponse.error}`);
+            setIsLoading(false);
+            return;
+          }
+          
+          if (!employeeResponse.data) {
+            console.error("No employee data found");
+            setError(`Employee with ID ${id} not found`);
+            setIsLoading(false);
+            return;
+          }
+          
+          employeeData = employeeResponse.data;
         }
         
-        // Fetch payroll data
+        // Validate employee data
+        if (!employeeData) {
+          console.error("No employee data available after API calls");
+          setError("Failed to retrieve employee data");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (typeof employeeData.id !== 'number') {
+          console.error("Invalid employee ID:", employeeData.id);
+          setError("Employee data is missing a valid ID");
+          setIsLoading(false);
+          return;
+        }
+        
+        // Set employee data and ID
+        setEmployee(employeeData);
+        employeeId = employeeData.id;
+        console.log(`Using employee ID: ${employeeId} for payroll data`);
+        
+        // Step 2: Fetch payroll data
+        console.log(`Fetching payroll data for employee ID: ${employeeId}`);
+        
+        const payslipsPromise = payrollApiService.getEmployeePayslips(employeeId);
+        const benefitsPromise = payrollApiService.getEmployeeBenefits(employeeId);
+        const taxDocumentsPromise = payrollApiService.getTaxDocuments(employeeId);
+        
         const [payslipsRes, benefitsRes, taxDocumentsRes] = await Promise.all([
-          payrollApiService.getEmployeePayslips(employeeId),
-          payrollApiService.getEmployeeBenefits(employeeId),
-          payrollApiService.getTaxDocuments(employeeId)
+          payslipsPromise,
+          benefitsPromise,
+          taxDocumentsPromise
         ]);
         
-        if (payslipsRes.error) throw new Error(payslipsRes.error);
-        if (benefitsRes.error) throw new Error(benefitsRes.error);
-        if (taxDocumentsRes.error) throw new Error(taxDocumentsRes.error);
+        console.log("Payslips response:", payslipsRes);
+        console.log("Benefits response:", benefitsRes);
+        console.log("Tax documents response:", taxDocumentsRes);
         
-        setPayslips(payslipsRes.data);
-        setBenefits(benefitsRes.data);
-        setTaxDocuments(taxDocumentsRes.data);
+        // Handle payslips
+        if (payslipsRes.error) {
+          console.warn("Error fetching payslips:", payslipsRes.error);
+        } else if (Array.isArray(payslipsRes.data)) {
+          setPayslips(payslipsRes.data);
+        } else {
+          console.warn("Payslips data is not an array:", payslipsRes.data);
+          setPayslips([]);
+        }
+        
+        // Handle benefits
+        if (benefitsRes.error) {
+          console.warn("Error fetching benefits:", benefitsRes.error);
+        } else if (Array.isArray(benefitsRes.data)) {
+          setBenefits(benefitsRes.data);
+        } else {
+          console.warn("Benefits data is not an array:", benefitsRes.data);
+          setBenefits([]);
+        }
+        
+        // Handle tax documents
+        if (taxDocumentsRes.error) {
+          console.warn("Error fetching tax documents:", taxDocumentsRes.error);
+        } else if (Array.isArray(taxDocumentsRes.data)) {
+          setTaxDocuments(taxDocumentsRes.data);
+        } else {
+          console.warn("Tax documents data is not an array:", taxDocumentsRes.data);
+          setTaxDocuments([]);
+        }
       } catch (error) {
         console.error('Failed to fetch payroll data:', error);
-        toast.error('Failed to load payroll information', {
-          description: 'Please try again later'
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setError(errorMessage);
+        
+        // Use safeToast to avoid React state updates during render
+        safeToast.error('Failed to load payroll information', {
+          description: errorMessage
         });
       } finally {
         setIsLoading(false);
@@ -88,6 +178,35 @@ const PayrollPage = () => {
           <div className="h-64 bg-white rounded-xl shadow-sm border border-hr-silver/10 animate-pulse" />
           <div className="grid grid-cols-1 gap-6">
             <div className="h-48 bg-white rounded-xl shadow-sm border border-hr-silver/10 animate-pulse" />
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+  
+  if (error) {
+    return (
+      <PageContainer>
+        <div className="text-center py-12">
+          <h2 className="text-2xl font-semibold text-red-600">Error Loading Data</h2>
+          <p className="text-hr-text-secondary mt-2">
+            {error}
+          </p>
+          <div className="mt-6 space-y-4">
+            <Button
+              variant="primary"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+            <div>
+              <Button
+                variant="outline"
+                onClick={() => window.history.back()}
+              >
+                Go Back
+              </Button>
+            </div>
           </div>
         </div>
       </PageContainer>

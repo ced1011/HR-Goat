@@ -242,17 +242,38 @@ class ApiService {
         options.body = JSON.stringify(data);
       }
       
-      console.log(`Making ${method} request to ${this.baseUrl}${endpoint}`, data);
+      // Improved logging - only log data for non-GET requests
+      if (method === 'GET') {
+        console.log(`Making ${method} request to ${this.baseUrl}${endpoint}`);
+      } else {
+        console.log(`Making ${method} request to ${this.baseUrl}${endpoint}`, data);
+      }
       
       // Make the request to the backend API
       const response = await fetch(`${this.baseUrl}${endpoint}`, options);
       const responseData = await response.json();
       
+      // Log the response for debugging
+      console.log(`Response from ${endpoint}:`, responseData);
+      
       if (!response.ok) {
         throw new Error(responseData.message || 'API request failed');
       }
       
-      return { data: responseData as T, error: null };
+      // Handle nested response structure
+      if (responseData.data !== undefined) {
+        console.log(`Extracted 'data' from response for ${endpoint}`);
+        return { data: responseData.data as T, error: null };
+      } else if (responseData.documents !== undefined) {
+        console.log(`Extracted 'documents' from response for ${endpoint}`);
+        return { data: responseData.documents as T, error: null };
+      } else if (responseData.events !== undefined) {
+        console.log(`Extracted 'events' from response for ${endpoint}`);
+        return { data: responseData.events as T, error: null };
+      } else {
+        console.log(`Using full response for ${endpoint}`);
+        return { data: responseData as T, error: null };
+      }
     } catch (error) {
       console.error(`API request to ${endpoint} failed:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

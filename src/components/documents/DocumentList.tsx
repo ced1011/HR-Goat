@@ -124,6 +124,11 @@ const DocumentList: React.FC<DocumentListProps> = ({
   };
   
   const getFileIcon = (mimeType: string) => {
+    // Handle undefined or empty mimeType
+    if (!mimeType) {
+      return <FileQuestion className="h-5 w-5" />;
+    }
+    
     if (mimeType.startsWith('image/')) {
       return <FileImage className="h-5 w-5" />;
     } else if (mimeType.startsWith('video/')) {
@@ -177,7 +182,22 @@ const DocumentList: React.FC<DocumentListProps> = ({
   });
   
   const canPreview = (mimeType: string) => {
+    // Handle undefined or empty mimeType
+    if (!mimeType) {
+      return false;
+    }
     return mimeType.startsWith('image/') || mimeType === 'application/pdf';
+  };
+  
+  // Fallback function to format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
   
   return (
@@ -235,10 +255,10 @@ const DocumentList: React.FC<DocumentListProps> = ({
                   <TableRow key={doc.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getFileIcon(doc.mimeType)}
+                        {getFileIcon(doc.mimeType || '')}
                         <div>
                           <p className="font-medium truncate max-w-[200px]">
-                            {doc.originalName}
+                            {doc.originalName || 'Unnamed Document'}
                           </p>
                           {doc.description && (
                             <p className="text-xs text-muted-foreground truncate max-w-[200px]">
@@ -249,20 +269,20 @@ const DocumentList: React.FC<DocumentListProps> = ({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={getDocumentTypeColor(doc.documentType)}>
-                        {doc.documentType.charAt(0).toUpperCase() + doc.documentType.slice(1)}
+                      <Badge className={getDocumentTypeColor(doc.documentType || 'other')}>
+                        {doc.documentType || 'Other'}
                       </Badge>
                     </TableCell>
                     {!employeeId && (
                       <TableCell>
-                        {doc.employeeName || 'General'}
+                        {doc.employeeName || 'N/A'}
                       </TableCell>
                     )}
                     <TableCell>
-                      {documentService.formatFileSize(doc.fileSize)}
+                      {formatFileSize(doc.fileSize || 0)}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(doc.uploadDate), 'MMM d, yyyy')}
+                      {doc.uploadDate ? format(new Date(doc.uploadDate), 'MMM d, yyyy') : 'Unknown date'}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -273,13 +293,13 @@ const DocumentList: React.FC<DocumentListProps> = ({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => window.open(documentService.getDownloadUrl(doc.id), '_blank')}
+                            onClick={() => window.open(doc.fileUrl || `${window.location.origin}/uploads/${doc.fileName}`, '_blank')}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Download
                           </DropdownMenuItem>
                           
-                          {canPreview(doc.mimeType) && (
+                          {canPreview(doc.mimeType || '') && (
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedDocument(doc);
@@ -292,7 +312,7 @@ const DocumentList: React.FC<DocumentListProps> = ({
                           )}
                           
                           <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
+                            className="text-red-600"
                             onClick={() => {
                               setSelectedDocument(doc);
                               setIsDeleteDialogOpen(true);

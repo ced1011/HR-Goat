@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PageContainer from '@/components/layout/PageContainer';
 import EmployeeCard from '@/components/employee/EmployeeCard';
@@ -20,13 +19,18 @@ const Employees = () => {
         if (response.error) {
           throw new Error(response.error);
         }
-        setEmployees(response.data);
-        setFilteredEmployees(response.data);
+        // Ensure we always have an array
+        const employeeData = Array.isArray(response.data) ? response.data : [];
+        setEmployees(employeeData);
+        setFilteredEmployees(employeeData);
       } catch (error) {
         console.error('Failed to fetch employees:', error);
         toast.error('Failed to load employees', {
           description: 'Please try again later.'
         });
+        // Set empty arrays on error
+        setEmployees([]);
+        setFilteredEmployees([]);
       } finally {
         setIsLoading(false);
       }
@@ -47,12 +51,15 @@ const Employees = () => {
       if (response.error) {
         throw new Error(response.error);
       }
-      setFilteredEmployees(response.data);
+      // Ensure we always have an array
+      const searchResults = Array.isArray(response.data) ? response.data : [];
+      setFilteredEmployees(searchResults);
     } catch (error) {
       console.error('Search failed:', error);
       toast.error('Search failed', {
         description: 'Please try again with different terms.'
       });
+      // Keep the current filtered employees on error
     } finally {
       setIsLoading(false);
     }
@@ -71,16 +78,22 @@ const Employees = () => {
       if (response.error) {
         throw new Error(response.error);
       }
-      setFilteredEmployees(response.data);
+      // Ensure we always have an array
+      const filterResults = Array.isArray(response.data) ? response.data : [];
+      setFilteredEmployees(filterResults);
     } catch (error) {
       console.error('Filter failed:', error);
       toast.error('Filter failed', {
         description: 'Please try again with different filters.'
       });
+      // Keep the current filtered employees on error
     } finally {
       setIsLoading(false);
     }
   };
+  
+  // Ensure filteredEmployees is always an array before using map
+  const employeesToRender = Array.isArray(filteredEmployees) ? filteredEmployees : [];
   
   return (
     <PageContainer>
@@ -109,7 +122,7 @@ const Employees = () => {
             />
           ))}
         </div>
-      ) : filteredEmployees.length === 0 ? (
+      ) : employeesToRender.length === 0 ? (
         <div className="text-center py-12">
           <h3 className="text-lg font-medium text-hr-text-primary">No employees found</h3>
           <p className="text-hr-text-secondary mt-1">
@@ -118,7 +131,7 @@ const Employees = () => {
         </div>
       ) : (
         <StaggeredContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredEmployees.map((employee, index) => (
+          {employeesToRender.map((employee, index) => (
             <EmployeeCard
               key={employee.id}
               id={employee.id}

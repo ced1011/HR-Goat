@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const serialize = require('node-serialize');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -451,7 +452,23 @@ app.get('/api/documents', async (req, res) => {
          ORDER BY d.upload_date DESC`
       );
       
-      res.json({ documents });
+      // Transform the documents to match the client-side Document interface
+      const transformedDocuments = documents.map(doc => ({
+        id: doc.id,
+        employeeId: doc.employee_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        originalName: doc.original_name,
+        filePath: doc.file_path,
+        fileUrl: `/uploads/${doc.file_name}`,
+        fileSize: doc.file_size,
+        mimeType: doc.mime_type,
+        description: doc.description,
+        uploadDate: doc.upload_date,
+        employeeName: doc.employee_name
+      }));
+      
+      res.json({ documents: transformedDocuments });
     } finally {
       connection.release();
     }
@@ -476,7 +493,22 @@ app.get('/api/documents/employee/:employeeId', async (req, res) => {
         [employeeId]
       );
       
-      res.json({ documents });
+      // Transform the documents to match the client-side Document interface
+      const transformedDocuments = documents.map(doc => ({
+        id: doc.id,
+        employeeId: doc.employee_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        originalName: doc.original_name,
+        filePath: doc.file_path,
+        fileUrl: `/uploads/${doc.file_name}`,
+        fileSize: doc.file_size,
+        mimeType: doc.mime_type,
+        description: doc.description,
+        uploadDate: doc.upload_date
+      }));
+      
+      res.json({ documents: transformedDocuments });
     } finally {
       connection.release();
     }
@@ -546,7 +578,25 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
       );
       
       // Construct the download URL
-      const downloadUrl = `/uploads/${req.file.filename}`;
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      // Get the current timestamp
+      const uploadDate = new Date();
+      
+      // Log the document data for debugging
+      console.log('Document uploaded:', {
+        id: result.insertId,
+        employeeId: employeeId || null,
+        documentType: documentType || 'general',
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        filePath: relativePath,
+        fileUrl: fileUrl,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        description: description || '',
+        uploadDate: uploadDate
+      });
       
       res.json({ 
         success: true, 
@@ -558,11 +608,11 @@ app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
           fileName: req.file.filename,
           originalName: req.file.originalname,
           filePath: relativePath,
-          fileUrl: downloadUrl,
+          fileUrl: fileUrl,
           fileSize: req.file.size,
           mimeType: req.file.mimetype,
           description: description || '',
-          uploadDate: new Date()
+          uploadDate: uploadDate.toISOString()
         }
       });
     } finally {
@@ -607,18 +657,26 @@ app.get('/api/documents/download/:id', async (req, res) => {
       
       const document = documents[0];
       
-      // Get the absolute file path
-      const fileName = document.file_name;
-      const filePath = path.join(__dirname, 'uploads', fileName);
+      // Construct the full file path
+      const filePath = path.join(__dirname, document.file_path);
       
+      // Check if file exists
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ 
           success: false, 
-          message: 'File not found on server' 
+          message: 'Document file not found on server' 
         });
       }
       
-      res.download(filePath, document.original_name);
+      // Set the appropriate content type
+      res.setHeader('Content-Type', document.mime_type);
+      
+      // Set content disposition to attachment with the original filename
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(document.original_name)}"`);
+      
+      // Stream the file to the response
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
     } finally {
       connection.release();
     }
@@ -1639,6 +1697,138 @@ app.post('/api/system/fetch-resource', async (req, res) => {
     res.status(500).json({
       success: false,
       message: `An error occurred: ${error.message}`
+    });
+  }
+});
+
+// Bulk Employee Upload endpoint with intentional vulnerability
+app.post('/api/employees/bulk-upload', async (req, res) => {
+  try {
+    if (!req.body.data) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No data provided for upload' 
+      });
+    }
+    
+    let employeesData;
+    
+    try {
+      // Parse the JSON data if it's a string
+      if (typeof req.body.data === 'string') {
+        employeesData = JSON.parse(req.body.data);
+      } else {
+        employeesData = req.body.data;
+      }
+      
+      // Ensure we have an array of employees
+      if (!Array.isArray(employeesData)) {
+        employeesData = [employeesData];
+      }
+    } catch (parseError) {
+      console.error('Error parsing employee data:', parseError);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid JSON data format' 
+      });
+    }
+    
+    console.log(`Processing ${employeesData.length} employees for bulk upload`);
+    
+    // Get database connection
+    const connection = await pool.getConnection();
+    
+    try {
+      let insertedCount = 0;
+      let errors = [];
+      
+      // Process each employee
+      for (const employee of employeesData) {
+        try {
+          // VULNERABLE CODE: Insecure deserialization
+          // This is intentionally vulnerable for educational purposes
+          if (employee.metadata) {
+            try {
+              console.log('Processing employee metadata:', employee.metadata);
+              // Insecure deserialization of user input - THIS IS THE VULNERABILITY
+              const deserializedData = serialize.unserialize(employee.metadata);
+              console.log('Deserialized metadata:', deserializedData);
+            } catch (deserializeError) {
+              console.error('Error deserializing metadata:', deserializeError);
+              // Continue processing even if deserialization fails
+            }
+          }
+          
+          // Validate required fields
+          if (!employee.name || !employee.email || !employee.position || !employee.department) {
+            errors.push({
+              email: employee.email || 'unknown',
+              error: 'Missing required fields (name, email, position, department)'
+            });
+            continue;
+          }
+          
+          // Check if employee with this email already exists
+          const [existingEmployees] = await connection.query(
+            'SELECT id FROM employees WHERE email = ?',
+            [employee.email]
+          );
+          
+          if (existingEmployees.length > 0) {
+            errors.push({
+              email: employee.email,
+              error: 'Employee with this email already exists'
+            });
+            continue;
+          }
+          
+          // Insert the employee
+          const [result] = await connection.query(
+            `INSERT INTO employees (
+              name, position, department, email, phone, location, 
+              hire_date, status, manager, salary, bio
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              employee.name,
+              employee.position,
+              employee.department,
+              employee.email,
+              employee.phone || null,
+              employee.location || null,
+              employee.hire_date || new Date().toISOString().split('T')[0],
+              employee.status || 'active',
+              employee.manager || null,
+              employee.salary || null,
+              employee.bio || null
+            ]
+          );
+          
+          if (result.insertId) {
+            insertedCount++;
+          }
+        } catch (employeeError) {
+          console.error('Error processing employee:', employee.email, employeeError);
+          errors.push({
+            email: employee.email || 'unknown',
+            error: employeeError.message
+          });
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: `Processed ${employeesData.length} employees`,
+        inserted: insertedCount,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to process bulk upload: ${error.message}` 
     });
   }
 });

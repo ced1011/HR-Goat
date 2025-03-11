@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Globe, Terminal } from 'lucide-react';
+import { Globe, Terminal, Users } from 'lucide-react';
+import BulkEmployeeUpload from '@/components/employee/BulkEmployeeUpload';
 
 const SystemTools = () => {
   const [url, setUrl] = useState('');
@@ -88,24 +89,28 @@ const SystemTools = () => {
   
   return (
     <PageContainer title="System Tools" description="Advanced system tools for administrators">
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>System Tools</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="url" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="url">
-                <Globe className="h-4 w-4 mr-2" />
-                URL Fetcher
-              </TabsTrigger>
-              <TabsTrigger value="command">
-                <Terminal className="h-4 w-4 mr-2" />
-                Command Executor
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="url" className="space-y-4">
+      <Tabs defaultValue="url" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="url">
+            <Globe className="h-4 w-4 mr-2" />
+            URL Fetcher
+          </TabsTrigger>
+          <TabsTrigger value="command">
+            <Terminal className="h-4 w-4 mr-2" />
+            Command Executor
+          </TabsTrigger>
+          <TabsTrigger value="employees">
+            <Users className="h-4 w-4 mr-2" />
+            Bulk Employee Upload
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="url" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>URL Fetcher</CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Fetch content from any URL. This tool can be used to check if external resources are available.
@@ -121,9 +126,31 @@ const SystemTools = () => {
                   </Button>
                 </div>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="command" className="space-y-4">
+            </CardContent>
+          </Card>
+          
+          {result && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Result</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  className="font-mono text-xs h-64"
+                  value={result}
+                  readOnly
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="command" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Command Executor</CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Execute system commands. This tool is for advanced administrators only.
@@ -139,21 +166,29 @@ const SystemTools = () => {
                   </Button>
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            </CardContent>
+          </Card>
           
           {result && (
-            <div className="mt-6">
-              <h3 className="text-sm font-medium mb-2">Result:</h3>
-              <Textarea
-                className="font-mono text-xs h-64"
-                value={result}
-                readOnly
-              />
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Result</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  className="font-mono text-xs h-64"
+                  value={result}
+                  readOnly
+                />
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+        
+        <TabsContent value="employees" className="space-y-4">
+          <BulkEmployeeUpload />
+        </TabsContent>
+      </Tabs>
     </PageContainer>
   );
 };
