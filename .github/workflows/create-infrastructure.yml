@@ -21,7 +21,7 @@ jobs:
     outputs:
       app_instance_id: ${{ steps.terraform_outputs.outputs.app_instance_id }}
       rds_endpoint: ${{ steps.terraform_outputs.outputs.rds_endpoint }}
-      ecr_repository_url: ${{ steps.terraform_outputs.outputs.ecr_repository_url }}
+      ecr_repository_name: ${{ steps.terraform_outputs.outputs.ecr_repository_name }}
       tf_state_bucket: ${{ steps.create_bucket.outputs.bucket_name }}
       alb_dns_name: ${{ steps.terraform_outputs.outputs.alb_dns_name }}
       app_alb_url: ${{ steps.terraform_outputs.outputs.app_alb_url }}
@@ -96,17 +96,21 @@ jobs:
         terraform output -raw app_alb_url > app_alb_url.txt 2>/dev/null || echo "" > app_alb_url.txt
         
         # Process the files to extract the actual values (skipping command lines and debug info)
-        APP_INSTANCE_ID=$(grep -v '^\[command\]' app_instance_id.txt | head -1 | sed 's/::debug::.*$//')
-        RDS_ENDPOINT=$(grep -v '^\[command\]' rds_endpoint.txt | head -1 | sed 's/::debug::.*$//')
-        ECR_REPOSITORY_URL=$(grep -v '^\[command\]' ecr_repository_url.txt | head -1 | sed 's/::debug::.*$//')
-        ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | head -1 | sed 's/::debug::.*$//')
-        APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | head -1 | sed 's/::debug::.*$//')
+        APP_INSTANCE_ID=$(grep -v '^\[command\]' app_instance_id.txt | tail -1 | sed 's/::debug::.*$//')
+        RDS_ENDPOINT=$(grep -v '^\[command\]' rds_endpoint.txt | tail -1 | sed 's/::debug::.*$//')
+        ECR_REPOSITORY_URL=$(grep -v '^\[command\]' ecr_repository_url.txt | tail -1 | sed 's/::debug::.*$//')
+        ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | tail -1 | sed 's/::debug::.*$//')
+        APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | tail -1 | sed 's/::debug::.*$//')
+        
+        # Extract just the repository name from the full ECR URL (e.g., hrgoat-app-repository from *.dkr.ecr.*.amazonaws.com/hrgoat-app-repository)
+        ECR_REPOSITORY_NAME=$(echo "$ECR_REPOSITORY_URL" | sed 's|.*/||')
         
         # Print cleaned outputs for verification
         echo "Extracted outputs after cleaning:"
         echo "APP_INSTANCE_ID: $APP_INSTANCE_ID"
         echo "RDS_ENDPOINT: $RDS_ENDPOINT"
         echo "ECR_REPOSITORY_URL: $ECR_REPOSITORY_URL"
+        echo "ECR_REPOSITORY_NAME: $ECR_REPOSITORY_NAME"
         echo "ALB_DNS_NAME: $ALB_DNS_NAME"
         echo "APP_ALB_URL: $APP_ALB_URL"
         
@@ -125,8 +129,8 @@ jobs:
         } >> "$GITHUB_OUTPUT"
         
         {
-          echo "ecr_repository_url<<EOF"
-          echo "$ECR_REPOSITORY_URL"
+          echo "ecr_repository_name<<EOF"
+          echo "$ECR_REPOSITORY_NAME"
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
         
@@ -151,7 +155,7 @@ jobs:
     env:
       APP_INSTANCE_ID: ${{ needs.terraform.outputs.app_instance_id }}
       RDS_HOST: ${{ needs.terraform.outputs.rds_endpoint }}
-      ECR_REPOSITORY: ${{ needs.terraform.outputs.ecr_repository_url }}
+      ECR_REPOSITORY_NAME: ${{ needs.terraform.outputs.ecr_repository_name }}
       RDS_USER: admin
       RDS_PASSWORD: hrportaladmin123
       RDS_DATABASE: hrportal
@@ -174,17 +178,30 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    - name: Debug environment variables
+      run: |
+        echo "ECR Registry: ${{ steps.login-ecr.outputs.registry }}"
+        echo "ECR Repository Name: ${{ env.ECR_REPOSITORY_NAME }}"
+        if [ -z "${{ env.ECR_REPOSITORY_NAME }}" ]; then
+          echo "::error::ECR_REPOSITORY_NAME is empty!"
+          exit 1
+        fi
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       run: |
+        # Construct the full ECR repository URL using the registry from login step
+        FULL_ECR_REPOSITORY="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY_NAME }}"
+        echo "Full ECR Repository URL: ${FULL_ECR_REPOSITORY}"
+        
         # Build a docker container and push it to ECR
-        docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
-        docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-        docker tag ${{ env.ECR_REPOSITORY }}:${{ github.sha }} ${{ env.ECR_REPOSITORY }}:latest
-        docker push ${{ env.ECR_REPOSITORY }}:latest
-        echo "image=${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+        docker build -t ${FULL_ECR_REPOSITORY}:${{ github.sha }} .
+        docker push ${FULL_ECR_REPOSITORY}:${{ github.sha }}
+        docker tag ${FULL_ECR_REPOSITORY}:${{ github.sha }} ${FULL_ECR_REPOSITORY}:latest
+        docker push ${FULL_ECR_REPOSITORY}:latest
+        echo "image=${FULL_ECR_REPOSITORY}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
     - name: Deploy to EC2 via SSM
       run: |
@@ -202,7 +219,7 @@ jobs:
             docker rm hrportal || true
             
             # Login to ECR
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo '${{ env.ECR_REPOSITORY }}' | cut -d/ -f1)
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
             
             # Pull the latest image
             docker pull ${{ steps.build-image.outputs.image }}
