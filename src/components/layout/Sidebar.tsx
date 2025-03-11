@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -49,7 +50,7 @@ const Sidebar = ({ isOpen = false }) => {
       to={to}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground',
+          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
           isActive || (to === '/dashboard' && pathname === '/') 
             ? 'bg-accent text-accent-foreground' 
             : 'transparent'
@@ -70,7 +71,7 @@ const Sidebar = ({ isOpen = false }) => {
           className="fixed left-0 top-20 z-50 bg-primary text-primary-foreground p-2 rounded-r-md shadow-md hover:bg-primary/90 transition-all"
           aria-label="Expand Sidebar"
         >
-          <Menu className="h-5 w-5" />
+          <ChevronRight className="h-5 w-5" />
         </button>
       )}
       
@@ -92,37 +93,37 @@ const Sidebar = ({ isOpen = false }) => {
             <nav className="grid items-start gap-2 px-3 text-sm font-medium">
               <NavItem 
                 to="/dashboard" 
-                icon={<Gauge className="h-4 w-4" />} 
+                icon={<Gauge className="h-5 w-5" />} 
                 label="Dashboard" 
               />
               <NavItem 
                 to="/employees" 
-                icon={<Users className="h-4 w-4" />} 
+                icon={<Users className="h-5 w-5" />} 
                 label="Employees" 
               />
               <NavItem 
                 to="/payroll" 
-                icon={<CreditCard className="h-4 w-4" />} 
+                icon={<CreditCard className="h-5 w-5" />} 
                 label="Payroll & Benefits" 
               />
               <NavItem 
                 to="/performance" 
-                icon={<Activity className="h-4 w-4" />} 
+                icon={<Activity className="h-5 w-5" />} 
                 label="Performance" 
               />
               <NavItem 
                 to="/calendar" 
-                icon={<Calendar className="h-4 w-4" />} 
+                icon={<Calendar className="h-5 w-5" />} 
                 label="Calendar" 
               />
               <NavItem 
                 to="/documents" 
-                icon={<FileText className="h-4 w-4" />} 
+                icon={<FileText className="h-5 w-5" />} 
                 label="Documents" 
               />
               <NavItem 
                 to="/reports" 
-                icon={<BarChart2 className="h-4 w-4" />} 
+                icon={<BarChart2 className="h-5 w-5" />} 
                 label="Reports" 
               />
             </nav>
@@ -130,27 +131,29 @@ const Sidebar = ({ isOpen = false }) => {
           <div className="border-t p-4">
             <NavItem 
               to="/database-setup" 
-              icon={<Database className="h-4 w-4" />} 
+              icon={<Database className="h-5 w-5" />} 
               label="Database Setup" 
             />
             <NavItem 
               to="/system-tools" 
-              icon={<Terminal className="h-4 w-4" />} 
+              icon={<Terminal className="h-5 w-5" />} 
               label="System Tools" 
             />
             
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-center items-center h-9 transition-all duration-200 mt-3"
+              className="w-full justify-center items-center h-9 transition-all duration-200 mt-4"
               onClick={handleToggleCollapse}
             >
               {effectiveCollapsed ? (
                 <ChevronRight className="h-4 w-4" />
               ) : (
-                <ChevronLeft className="h-4 w-4" />
+                <>
+                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  <span>Collapse</span>
+                </>
               )}
-              {!effectiveCollapsed && <span className="ml-2">Collapse</span>}
             </Button>
           </div>
         </div>

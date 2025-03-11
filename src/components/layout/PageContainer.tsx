@@ -19,6 +19,13 @@ const PageContainer: React.FC<PageContainerProps> = ({
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem('sidebar_collapsed');
+      return savedState ? JSON.parse(savedState) : false;
+    }
+    return false;
+  });
   
   useEffect(() => {
     setIsMounted(true);
@@ -35,8 +42,21 @@ const PageContainer: React.FC<PageContainerProps> = ({
       }
     };
     
+    // Listen for sidebar collapsed state changes
+    const handleStorageChange = () => {
+      const savedState = localStorage.getItem('sidebar_collapsed');
+      if (savedState) {
+        setSidebarCollapsed(JSON.parse(savedState));
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      document.removeEventListener('click', handleClickOutside);
+    };
   }, [isSidebarOpen]);
   
   const toggleSidebar = () => {
@@ -54,7 +74,10 @@ const PageContainer: React.FC<PageContainerProps> = ({
         
         <main className={cn(
           "flex-1 transition-all duration-300",
-          "md:ml-64",
+          {
+            "ml-[70px]": sidebarCollapsed && window.innerWidth >= 768,
+            "md:ml-64": !sidebarCollapsed && window.innerWidth >= 768,
+          },
           "p-4 md:p-6 lg:p-8",
           "animate-in",
           className
