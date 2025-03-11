@@ -90,57 +90,60 @@ jobs:
         
         # Display all available outputs for debugging
         echo "All Terraform outputs:"
-        terraform output
+        terraform output || echo "No outputs found"
         
-        # Extract outputs from Terraform and save to files
-        terraform output -raw app_instance_id > app_instance_id.txt 2>/dev/null || echo "i-dummyinstance" > app_instance_id.txt
-        terraform output -raw rds_endpoint > rds_endpoint.txt 2>/dev/null || echo "dummy-db.us-east-1.rds.amazonaws.com:3306" > rds_endpoint.txt
-        terraform output -raw ecr_repository_url > ecr_repository_url.txt 2>/dev/null || echo "" > ecr_repository_url.txt
-        terraform output -raw alb_dns_name > alb_dns_name.txt 2>/dev/null || echo "dummy-alb.us-east-1.elb.amazonaws.com" > alb_dns_name.txt
-        terraform output -raw app_alb_url > app_alb_url.txt 2>/dev/null || echo "http://dummy-alb.us-east-1.elb.amazonaws.com" > app_alb_url.txt
+        # Check if core resources were created by querying AWS directly
+        echo "Checking for resources created by Terraform..."
         
-        # Show content of each file for debugging
-        echo "Contents of app_instance_id.txt:"
-        cat app_instance_id.txt
-        echo "Contents of rds_endpoint.txt:"
-        cat rds_endpoint.txt
+        # 1. Get EC2 instance by tag
+        APP_INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-app-instance" --query "Reservations[0].Instances[0].InstanceId" --output text)
+        if [ "$APP_INSTANCE_ID" == "None" ] || [ -z "$APP_INSTANCE_ID" ]; then
+          echo "Warning: Could not find app instance with tag Name=${{ env.PROJECT_NAME }}-app-instance"
+          # Try to fallback to any instance with our project tag
+          APP_INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag-key,Values=Project" "Name=tag-value,Values=${{ env.PROJECT_NAME }}" --query "Reservations[0].Instances[0].InstanceId" --output text)
+        fi
+        echo "Found EC2 instance ID: $APP_INSTANCE_ID"
         
-        # Process the files to extract the actual values (skipping command lines and debug info)
-        APP_INSTANCE_ID=$(grep -v '^\[command\]' app_instance_id.txt | tail -1 | sed 's/::debug::.*$//')
-        RDS_ENDPOINT=$(grep -v '^\[command\]' rds_endpoint.txt | tail -1 | sed 's/::debug::.*$//')
-        ECR_REPOSITORY_URL=$(grep -v '^\[command\]' ecr_repository_url.txt | tail -1 | sed 's/::debug::.*$//')
-        ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | tail -1 | sed 's/::debug::.*$//')
-        APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | tail -1 | sed 's/::debug::.*$//')
+        # 2. Get RDS instance by tag/identifier
+        RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier "${{ env.PROJECT_NAME }}-db" --query "DBInstances[0].Endpoint.Address" --output text 2>/dev/null)
+        if [ "$RDS_ENDPOINT" == "None" ] || [ -z "$RDS_ENDPOINT" ]; then
+          echo "Warning: Could not find RDS instance with identifier ${{ env.PROJECT_NAME }}-db"
+          # Look for any instance with similar name
+          RDS_ENDPOINT=$(aws rds describe-db-instances --query "DBInstances[?starts_with(DBInstanceIdentifier, '${{ env.PROJECT_NAME }}')].Endpoint.Address" --output text | head -1)
+        fi
+        RDS_PORT=$(aws rds describe-db-instances --db-instance-identifier "${{ env.PROJECT_NAME }}-db" --query "DBInstances[0].Endpoint.Port" --output text 2>/dev/null || echo "3306")
+        RDS_HOST="${RDS_ENDPOINT}:${RDS_PORT}"
+        echo "Found RDS endpoint: $RDS_HOST"
         
-        # Instead of trying to extract the repository name from the masked URL, use the known naming convention
-        # In Terraform, the repository is created as "${var.project_name}-app-repository"
+        # 3. Check ECR repository
+        # We're already using a hardcoded repo name, so this is less critical
         ECR_REPOSITORY_NAME="${{ env.PROJECT_NAME }}-app-repository"
-        echo "ECR_REPOSITORY_NAME: $ECR_REPOSITORY_NAME"
+        echo "Using ECR repository: $ECR_REPOSITORY_NAME"
         
-        echo "ALB_DNS_NAME: $ALB_DNS_NAME"
-        echo "APP_ALB_URL: $APP_ALB_URL"
+        # 4. Check ALB
+        ALB_DNS_NAME=$(aws elbv2 describe-load-balancers --names "${{ env.PROJECT_NAME }}-alb" --query "LoadBalancers[0].DNSName" --output text 2>/dev/null)
+        if [ "$ALB_DNS_NAME" == "None" ] || [ -z "$ALB_DNS_NAME" ]; then
+          echo "Warning: Could not find ALB with name ${{ env.PROJECT_NAME }}-alb"
+        fi
+        APP_ALB_URL="http://${ALB_DNS_NAME}"
+        echo "ALB DNS Name: $ALB_DNS_NAME"
+        echo "ALB URL: $APP_ALB_URL"
         
-        # Export outputs in GitHub Actions format
-        # Make sure to properly format the outputs according to GitHub Actions requirements
-        {
-          echo "app_instance_id=$APP_INSTANCE_ID"
-        } >> "$GITHUB_OUTPUT"
-        
-        {
-          echo "rds_endpoint=$RDS_ENDPOINT"
-        } >> "$GITHUB_OUTPUT"
-        
-        {
-          echo "ecr_repository_name=$ECR_REPOSITORY_NAME"
-        } >> "$GITHUB_OUTPUT"
-        
-        {
-          echo "alb_dns_name=$ALB_DNS_NAME"
-        } >> "$GITHUB_OUTPUT"
-        
-        {
-          echo "app_alb_url=$APP_ALB_URL"
-        } >> "$GITHUB_OUTPUT"
+        # Set outputs directly in GitHub's format
+        echo "app_instance_id=$APP_INSTANCE_ID" >> $GITHUB_OUTPUT
+        echo "rds_endpoint=$RDS_HOST" >> $GITHUB_OUTPUT
+        echo "ecr_repository_name=$ECR_REPOSITORY_NAME" >> $GITHUB_OUTPUT
+        echo "alb_dns_name=$ALB_DNS_NAME" >> $GITHUB_OUTPUT
+        echo "app_alb_url=$APP_ALB_URL" >> $GITHUB_OUTPUT
+
+    - name: Verify Terraform Outputs
+      run: |
+        echo "Terraform outputs set for next job:"
+        echo "APP_INSTANCE_ID = ${{ steps.terraform_outputs.outputs.app_instance_id }}"
+        echo "RDS_ENDPOINT = ${{ steps.terraform_outputs.outputs.rds_endpoint }}"
+        echo "ECR_REPOSITORY_NAME = ${{ steps.terraform_outputs.outputs.ecr_repository_name }}"
+        echo "ALB_DNS_NAME = ${{ steps.terraform_outputs.outputs.alb_dns_name }}"
+        echo "APP_ALB_URL = ${{ steps.terraform_outputs.outputs.app_alb_url }}"
 
   build-and-deploy:
     name: 'Build and Deploy Application'
