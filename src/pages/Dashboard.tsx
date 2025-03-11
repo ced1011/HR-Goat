@@ -17,7 +17,12 @@ import {
   Mail,
   TrendingUp,
   Award,
-  CheckCircle
+  CheckCircle,
+  TrendingDown,
+  Target,
+  DollarSign,
+  Percent,
+  Building
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -54,6 +59,34 @@ const Dashboard = () => {
       change: '+5', 
       icon: FileCheck, 
       color: 'bg-green-50 text-green-600' 
+    },
+    { 
+      title: 'Departments', 
+      value: '7', 
+      change: '+1', 
+      icon: Building, 
+      color: 'bg-cyan-50 text-cyan-600' 
+    },
+    { 
+      title: 'Training Completion', 
+      value: '86%', 
+      change: '+4%', 
+      icon: Target, 
+      color: 'bg-pink-50 text-pink-600' 
+    },
+    { 
+      title: 'Monthly Budget', 
+      value: '$138K', 
+      change: '-5%', 
+      icon: DollarSign, 
+      color: 'bg-indigo-50 text-indigo-600' 
+    },
+    { 
+      title: 'Retention Rate', 
+      value: '92%', 
+      change: '+2%', 
+      icon: Percent, 
+      color: 'bg-emerald-50 text-emerald-600' 
     },
   ];
   
@@ -122,7 +155,7 @@ const Dashboard = () => {
         </SlideIn>
       </div>
       
-      {/* First row: 4 equal-sized stat cards */}
+      {/* First row: stat cards in a responsive grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StaggeredContainer staggerDelay={100}>
           {stats.map((stat, index) => (
