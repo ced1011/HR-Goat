@@ -102,15 +102,17 @@ jobs:
         ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | tail -1 | sed 's/::debug::.*$//')
         APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | tail -1 | sed 's/::debug::.*$//')
         
-        # Extract just the repository name from the full ECR URL (e.g., hrgoat-app-repository from *.dkr.ecr.*.amazonaws.com/hrgoat-app-repository)
-        ECR_REPOSITORY_NAME=$(echo "$ECR_REPOSITORY_URL" | sed 's|.*/||')
-        
         # Print cleaned outputs for verification
         echo "Extracted outputs after cleaning:"
         echo "APP_INSTANCE_ID: $APP_INSTANCE_ID"
         echo "RDS_ENDPOINT: $RDS_ENDPOINT"
         echo "ECR_REPOSITORY_URL: $ECR_REPOSITORY_URL"
+        
+        # Instead of trying to extract the repository name from the masked URL, use the known naming convention
+        # In Terraform, the repository is created as "${var.project_name}-app-repository"
+        ECR_REPOSITORY_NAME="${{ env.PROJECT_NAME }}-app-repository"
         echo "ECR_REPOSITORY_NAME: $ECR_REPOSITORY_NAME"
+        
         echo "ALB_DNS_NAME: $ALB_DNS_NAME"
         echo "APP_ALB_URL: $APP_ALB_URL"
         
