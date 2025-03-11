@@ -482,8 +482,8 @@ resource "aws_security_group" "alb_sg" {
 # Update App Security Group to allow traffic from ALB
 resource "aws_security_group_rule" "app_from_alb" {
   type                     = "ingress"
-  from_port                = 3000
-  to_port                  = 3000
+  from_port                = 80
+  to_port                  = 80
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.alb_sg.id
   security_group_id        = aws_security_group.app_sg.id
@@ -493,7 +493,7 @@ resource "aws_security_group_rule" "app_from_alb" {
 # ALB Target Group
 resource "aws_lb_target_group" "app_tg" {
   name     = "${var.project_name}-app-tg"
-  port     = 3000
+  port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
   
@@ -529,5 +529,5 @@ resource "aws_lb_listener" "app_listener" {
 resource "aws_lb_target_group_attachment" "app_attachment" {
   target_group_arn = aws_lb_target_group.app_tg.arn
   target_id        = aws_instance.app_instance.id
-  port             = 3000
+  port             = 80
 } 

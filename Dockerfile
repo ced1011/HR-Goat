@@ -15,7 +15,7 @@ COPY . .
 RUN npm run build
 
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 80
 
 # Create a script to update database configuration at runtime
 RUN echo '#!/bin/sh \n\
@@ -25,6 +25,8 @@ sed -i "s|DB_USER=.*|DB_USER=$DB_USER|g" .env \n\
 sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|g" .env \n\
 sed -i "s|DB_NAME=.*|DB_NAME=$DB_NAME|g" .env \n\
 echo "Database configuration updated." \n\
+# Add port configuration for the application to use port 80 \n\
+export PORT=80 \n\
 npm start \n\
 ' > /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 

@@ -221,18 +221,20 @@ jobs:
           DB_HOST=$(echo "${{ env.RDS_HOST }}" | cut -d: -f1)
         fi
         
-
+        # Wait for EC2 instance to be ready
+        echo "Waiting for EC2 instance to be ready..."
+        aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
         
-        # Deploy using SSM with multiple separate commands
+        # Create commands JSON string
+        COMMANDS_JSON='["docker stop hrportal || true", "docker rm hrportal || true", "aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"'", "docker pull '"${{ steps.build-image.outputs.image }}"'", "docker run -d --name hrportal -p 80:80 -e DB_HOST=\"'"$DB_HOST"'\" -e DB_USER=\"'"${{ env.RDS_USER }}"'\" -e DB_PASSWORD=\"'"${{ env.RDS_PASSWORD }}"'\" -e DB_NAME=\"'"${{ env.RDS_DATABASE }}"'\" '"${{ steps.build-image.outputs.image }}"'", "docker ps | grep hrportal"]'
+        
+        echo "Using commands: $COMMANDS_JSON"
+        
+        # Deploy using SSM with properly formatted JSON parameter
         aws ssm send-command \
           --instance-ids ${{ env.APP_INSTANCE_ID }} \
           --document-name "AWS-RunShellScript" \
-          --parameters commands=["docker stop hrportal || true",
-                                "docker rm hrportal || true",
-                                "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-                                "docker pull ${{ steps.build-image.outputs.image }}",
-                                "docker run -d --name hrportal -p 3000:3000 -e DB_HOST=\"$DB_HOST\" -e DB_USER=\"${{ env.RDS_USER }}\" -e DB_PASSWORD=\"${{ env.RDS_PASSWORD }}\" -e DB_NAME=\"${{ env.RDS_DATABASE }}\" ${{ steps.build-image.outputs.image }}",
-                                "docker ps | grep hrportal"] \
+          --parameters commands="$COMMANDS_JSON" \
           --output text
 
     - name: Output Deployment Info
@@ -253,7 +255,7 @@ jobs:
         
         EC2_IP=$(aws ec2 describe-instances --instance-ids ${{ env.APP_INSTANCE_ID }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text 2>/dev/null)
         if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "None" ]; then
-          echo "Direct EC2 URL: http://$EC2_IP:3000"
+          echo "Direct EC2 URL: http://$EC2_IP:80"
         else
           echo "Direct EC2 URL: Not available"
         fi
