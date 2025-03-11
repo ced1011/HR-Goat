@@ -4,11 +4,6 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "vpc_id" {
-  description = "ID of the existing VPC"
-  type        = string
-}
-
 variable "project_name" {
   description = "Name of the project for resource naming"
   type        = string
@@ -16,20 +11,15 @@ variable "project_name" {
 }
 
 variable "ec2_ami_id" {
-  description = "AMI ID for the EC2 instance"
+  description = "AMI ID for the EC2 instances"
   type        = string
-  default     = "ami-0c7217cdde317cfec" # Amazon Linux 2023 AMI in us-east-1
+  default     = "ami-0277155c3f0ab2930"
 }
 
 variable "ec2_instance_type" {
-  description = "Instance type for the EC2 instance"
+  description = "Instance type for the EC2 instances"
   type        = string
   default     = "t2.micro"
-}
-
-variable "key_name" {
-  description = "Name of the SSH key pair to use for EC2 instance"
-  type        = string
 }
 
 variable "db_instance_class" {
@@ -48,4 +38,15 @@ variable "db_password" {
   description = "Password for the RDS instance"
   type        = string
   sensitive   = true
+}
+
+variable "common_tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+  default     = {
+    App  = "HR-GOAT-APP"
+    Note = "For security testing"
+    Name = "DemoHRApp"
+    Link = "https://github.com/SilentProcess87/cyber-lab-hr-simulator"
+  }
 } 

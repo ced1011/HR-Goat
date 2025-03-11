@@ -1,9 +1,0 @@
-aws_region        = "us-east-1"
-vpc_id           = "vpc-0123456789abcdef0"  # Replace with your VPC ID
-project_name     = "hrgoat"
-ec2_ami_id       = "ami-0c7217cdde317cfec"  # Amazon Linux 2023 AMI in us-east-1
-ec2_instance_type = "t2.micro"
-key_name         = "your-key-pair-name"     # Replace with your SSH key pair name
-db_instance_class = "db.t3.micro"
-db_username      = "admin"
-db_password      = "YourStrongPassword123!" # Replace with a secure password !

@@ -1,0 +1,197 @@
+name: Create Infrastructure and Deploy Application
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  TF_STATE_BUCKET_PREFIX: "hrgoat-tfstate-do-not-delete"
+  TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
+  PROJECT_NAME: "hrgoat"
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    outputs:
+      app_instance_id: ${{ steps.terraform_outputs.outputs.app_instance_id }}
+      rds_endpoint: ${{ steps.terraform_outputs.outputs.rds_endpoint }}
+      ecr_repository_url: ${{ steps.terraform_outputs.outputs.ecr_repository_url }}
+      tf_state_bucket: ${{ steps.create_bucket.outputs.bucket_name }}
+      alb_dns_name: ${{ steps.terraform_outputs.outputs.alb_dns_name }}
+      app_alb_url: ${{ steps.terraform_outputs.outputs.app_alb_url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: "us-east-1"
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.0.0
+
+    - name: Create unique S3 bucket name for Terraform state
+      id: create_bucket
+      run: |
+        # Generate unique bucket name with epoch timestamp
+        TIMESTAMP=$(date +%s)
+        BUCKET_NAME="${{ env.TF_STATE_BUCKET_PREFIX }}-${TIMESTAMP}"
+        echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+        echo "Using bucket name: ${BUCKET_NAME}"
+
+    - name: Create S3 bucket for Terraform state if it doesn't exist
+      run: |
+        BUCKET_NAME="${{ steps.create_bucket.outputs.bucket_name }}"
+        
+        aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
+        aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}
+        
+        # Enable versioning
+        aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Enabled
+        
+        # Add bucket policy to prevent deletion
+        aws s3api put-bucket-policy --bucket ${BUCKET_NAME} --policy '{
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:DeleteBucket",
+              "Resource": "arn:aws:s3:::'${BUCKET_NAME}'"
+            }
+          ]
+        }'
+        
+        # Store bucket name in a file that will be stored in S3 for reference by destroy workflow
+        echo "BUCKET_NAME=${BUCKET_NAME}" > bucket-name.txt
+        aws s3 cp bucket-name.txt s3://${BUCKET_NAME}/bucket-name.txt
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${{ steps.create_bucket.outputs.bucket_name }}" \
+          -backend-config="key=${{ env.TF_STATE_KEY }}" \
+          -backend-config="region=${{ env.AWS_REGION }}"
+
+    - name: Terraform Plan
+      run: |
+        cd terraform
+        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -out=tfplan
+
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve tfplan
+
+    - name: Export Terraform Outputs
+      id: terraform_outputs
+      run: |
+        cd terraform
+        
+        # Export required output values
+        echo "app_instance_id=$(terraform output -raw app_instance_id)" >> $GITHUB_OUTPUT
+        echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
+        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+        echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
+        echo "app_alb_url=$(terraform output -raw app_alb_url)" >> $GITHUB_OUTPUT
+
+  build-and-deploy:
+    name: 'Build and Deploy Application'
+    needs: terraform
+    runs-on: ubuntu-latest
+
+    env:
+      APP_INSTANCE_ID: ${{ needs.terraform.outputs.app_instance_id }}
+      RDS_HOST: ${{ needs.terraform.outputs.rds_endpoint }}
+      ECR_REPOSITORY: ${{ needs.terraform.outputs.ecr_repository_url }}
+      RDS_USER: admin
+      RDS_PASSWORD: hrportaladmin123
+      RDS_DATABASE: hrportal
+      TF_STATE_BUCKET: ${{ needs.terraform.outputs.tf_state_bucket }}
+      ALB_DNS_NAME: ${{ needs.terraform.outputs.alb_dns_name }}
+      APP_ALB_URL: ${{ needs.terraform.outputs.app_alb_url }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
+        docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+        docker tag ${{ env.ECR_REPOSITORY }}:${{ github.sha }} ${{ env.ECR_REPOSITORY }}:latest
+        docker push ${{ env.ECR_REPOSITORY }}:latest
+        echo "image=${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+    - name: Deploy to EC2 via SSM
+      run: |
+        # Wait for EC2 instance to be ready
+        echo "Waiting for EC2 instance to be ready..."
+        aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
+        
+        # Deploy using SSM
+        aws ssm send-command \
+          --instance-ids ${{ env.APP_INSTANCE_ID }} \
+          --document-name "AWS-RunShellScript" \
+          --parameters commands="
+            # Stop and remove any existing container
+            docker stop hrportal || true
+            docker rm hrportal || true
+            
+            # Login to ECR
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $(echo '${{ env.ECR_REPOSITORY }}' | cut -d/ -f1)
+            
+            # Pull the latest image
+            docker pull ${{ steps.build-image.outputs.image }}
+            
+            # Run the container with environment variables
+            docker run -d \
+              --name hrportal \
+              -p 3000:3000 \
+              -e DB_HOST='$(echo '${{ env.RDS_HOST }}' | cut -d: -f1)' \
+              -e DB_USER='${{ env.RDS_USER }}' \
+              -e DB_PASSWORD='${{ env.RDS_PASSWORD }}' \
+              -e DB_NAME='${{ env.RDS_DATABASE }}' \
+              ${{ steps.build-image.outputs.image }}
+            
+            # Check if container is running
+            docker ps | grep hrportal
+          " \
+          --output text
+
+    - name: Output Deployment Info
+      run: |
+        echo "Application deployed successfully!"
+        echo "Application Load Balancer URL: ${{ env.APP_ALB_URL }}"
+        echo "Application Load Balancer DNS: ${{ env.ALB_DNS_NAME }}"
+        echo "Direct EC2 URL: http://$(aws ec2 describe-instances --instance-ids ${{ env.APP_INSTANCE_ID }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text):3000"
+        echo "Jenkins server should be accessible at: http://$(aws ec2 describe-instances --filters 'Name=tag:Name,Values=${{ env.PROJECT_NAME }}-jenkins-instance' --query 'Reservations[0].Instances[0].PublicIpAddress' --output text):8080"
+        echo "Terraform state is stored in S3 bucket: ${{ env.TF_STATE_BUCKET }}"
+        echo "To destroy this infrastructure, use the Destroy Infrastructure workflow with this bucket name." 

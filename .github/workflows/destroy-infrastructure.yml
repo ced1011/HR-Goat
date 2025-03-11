@@ -1,0 +1,119 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: 'Type "destroy" to confirm'
+        required: true
+        type: string
+      bucket_name:
+        description: 'S3 bucket name containing Terraform state'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
+  PROJECT_NAME: "hrgoat"
+
+jobs:
+  terraform-destroy:
+    name: 'Terraform Destroy'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    
+    # Only proceed if the user typed "destroy" to confirm
+    if: ${{ github.event.inputs.confirm_destroy == 'destroy' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.0.0
+
+    - name: Validate bucket name
+      id: validate_bucket
+      run: |
+        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+        echo "Using bucket name: ${BUCKET_NAME}"
+        
+        # Check if bucket exists
+        if aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null; then
+          echo "bucket_exists=true" >> $GITHUB_OUTPUT
+          echo "Bucket ${BUCKET_NAME} exists."
+        else
+          echo "bucket_exists=false" >> $GITHUB_OUTPUT
+          echo "Bucket ${BUCKET_NAME} does not exist."
+          exit 1
+        fi
+
+    - name: Check if Terraform state exists
+      id: check_state
+      if: steps.validate_bucket.outputs.bucket_exists == 'true'
+      run: |
+        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+        
+        if aws s3api head-object --bucket ${BUCKET_NAME} --key ${{ env.TF_STATE_KEY }} 2>/dev/null; then
+          echo "state_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "state_exists=false" >> $GITHUB_OUTPUT
+          echo "No Terraform state found. Nothing to destroy."
+        fi
+
+    - name: Terraform Init
+      if: steps.check_state.outputs.state_exists == 'true'
+      run: |
+        cd terraform
+        terraform init \
+          -backend-config="bucket=${{ github.event.inputs.bucket_name }}" \
+          -backend-config="key=${{ env.TF_STATE_KEY }}" \
+          -backend-config="region=${{ env.AWS_REGION }}"
+
+    - name: Terraform Plan Destroy
+      if: steps.check_state.outputs.state_exists == 'true'
+      run: |
+        cd terraform
+        terraform plan -destroy -var="project_name=${{ env.PROJECT_NAME }}" -out=tfdestroyplan
+
+    - name: Terraform Destroy
+      if: steps.check_state.outputs.state_exists == 'true'
+      run: |
+        cd terraform
+        terraform apply -auto-approve tfdestroyplan
+        echo "Infrastructure has been successfully destroyed."
+
+    - name: Cleanup Terraform State and Bucket
+      if: steps.check_state.outputs.state_exists == 'true'
+      run: |
+        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+        
+        # Remove all objects in the bucket
+        echo "Removing all objects from bucket ${BUCKET_NAME}..."
+        aws s3 rm s3://${BUCKET_NAME} --recursive
+        
+        # Remove bucket policy to allow deletion
+        echo "Removing bucket policy..."
+        aws s3api delete-bucket-policy --bucket ${BUCKET_NAME}
+        
+        # Disable versioning
+        echo "Disabling versioning..."
+        aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Suspended
+        
+        # Delete the bucket
+        echo "Deleting bucket..."
+        aws s3api delete-bucket --bucket ${BUCKET_NAME}
+        
+        echo "Terraform state and bucket have been removed." 
