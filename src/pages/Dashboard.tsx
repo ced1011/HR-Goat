@@ -122,6 +122,7 @@ const Dashboard = () => {
         </SlideIn>
       </div>
       
+      {/* First row: 4 equal-sized stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StaggeredContainer staggerDelay={100}>
           {stats.map((stat, index) => (
@@ -150,101 +151,99 @@ const Dashboard = () => {
         </StaggeredContainer>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        <div className="col-span-1 lg:col-span-2">
-          <FadeIn delay={400}>
-            <Card className="h-full bg-white shadow-apple-sm">
-              <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-                <CardTitle className="text-lg font-semibold">Performance Overview</CardTitle>
-                <Button variant="outline" size="sm" className="text-hr-blue border-hr-blue hover:bg-hr-blue/5">
-                  View Details
-                </Button>
-              </CardHeader>
-              <CardContent className="pb-6 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div className="bg-blue-50/50 rounded-lg p-4 flex items-center space-x-4">
-                    <div className="bg-hr-blue/10 p-3 rounded-full">
-                      <TrendingUp className="h-5 w-5 text-hr-blue" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-hr-text-secondary">Productivity</p>
-                      <h4 className="text-xl font-semibold">92%</h4>
-                    </div>
+      {/* Second row: 2 equal-sized cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <FadeIn delay={400}>
+          <Card className="h-full bg-white shadow-apple-sm">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <CardTitle className="text-lg font-semibold">Performance Overview</CardTitle>
+              <Button variant="outline" size="sm" className="text-hr-blue border-hr-blue hover:bg-hr-blue/5">
+                View Details
+              </Button>
+            </CardHeader>
+            <CardContent className="pb-6 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-blue-50/50 rounded-lg p-4 flex items-center space-x-4">
+                  <div className="bg-hr-blue/10 p-3 rounded-full">
+                    <TrendingUp className="h-5 w-5 text-hr-blue" />
                   </div>
-                  <div className="bg-green-50/50 rounded-lg p-4 flex items-center space-x-4">
-                    <div className="bg-green-500/10 p-3 rounded-full">
-                      <Award className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-hr-text-secondary">Goal Completion</p>
-                      <h4 className="text-xl font-semibold">87%</h4>
-                    </div>
-                  </div>
-                  <div className="bg-purple-50/50 rounded-lg p-4 flex items-center space-x-4">
-                    <div className="bg-purple-500/10 p-3 rounded-full">
-                      <CheckCircle className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-hr-text-secondary">Tasks Completed</p>
-                      <h4 className="text-xl font-semibold">148</h4>
-                    </div>
+                  <div>
+                    <p className="text-sm text-hr-text-secondary">Productivity</p>
+                    <h4 className="text-xl font-semibold">92%</h4>
                   </div>
                 </div>
-                <div className="aspect-[4/2] flex flex-col justify-center bg-hr-silver/5 rounded-lg p-4">
-                  <div className="h-40 w-full">
-                    <div className="h-full flex items-end space-x-2 justify-around">
-                      {performanceData.map((item) => (
-                        <div key={item.month} className="flex flex-col items-center">
-                          <div className="relative w-12">
-                            <div 
-                              className="w-12 bg-hr-blue rounded-t-md transition-all duration-500"
-                              style={{ height: `${item.productivity}px` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs mt-2 text-hr-text-secondary">{item.month}</span>
+                <div className="bg-green-50/50 rounded-lg p-4 flex items-center space-x-4">
+                  <div className="bg-green-500/10 p-3 rounded-full">
+                    <Award className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-hr-text-secondary">Goal Completion</p>
+                    <h4 className="text-xl font-semibold">87%</h4>
+                  </div>
+                </div>
+                <div className="bg-purple-50/50 rounded-lg p-4 flex items-center space-x-4">
+                  <div className="bg-purple-500/10 p-3 rounded-full">
+                    <CheckCircle className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-hr-text-secondary">Tasks Completed</p>
+                    <h4 className="text-xl font-semibold">148</h4>
+                  </div>
+                </div>
+              </div>
+              <div className="aspect-[4/2] flex flex-col justify-center bg-hr-silver/5 rounded-lg p-4">
+                <div className="h-40 w-full">
+                  <div className="h-full flex items-end space-x-2 justify-around">
+                    {performanceData.map((item) => (
+                      <div key={item.month} className="flex flex-col items-center">
+                        <div className="relative w-12">
+                          <div 
+                            className="w-12 bg-hr-blue rounded-t-md transition-all duration-500"
+                            style={{ height: `${item.productivity}px` }}
+                          ></div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-center mt-2">
-                    <p className="text-sm text-hr-text-secondary">Performance Trend - Last 6 Months</p>
+                        <span className="text-xs mt-2 text-hr-text-secondary">{item.month}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </FadeIn>
-        </div>
+                <div className="text-center mt-2">
+                  <p className="text-sm text-hr-text-secondary">Performance Trend - Last 6 Months</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </FadeIn>
         
-        <div>
-          <SlideIn direction="up" delay={500}>
-            <Card className="h-full bg-white shadow-apple-sm">
-              <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-                <CardTitle className="text-lg font-semibold">Recent Activities</CardTitle>
-                <Button variant="ghost" size="sm" className="text-hr-blue">
-                  See all
-                </Button>
-              </CardHeader>
-              <CardContent className="px-4 py-4">
-                <div className="space-y-4">
-                  {activities.map((activity, index) => (
-                    <div key={activity.id} className="flex p-3 rounded-lg hover:bg-hr-silver/5 transition-colors">
-                      <div className={cn("p-2 rounded-lg mr-3 self-start", activity.color)}>
-                        <activity.icon className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-medium">{activity.title}</h4>
-                        <p className="text-xs text-hr-text-secondary mt-0.5">{activity.description}</p>
-                        <p className="text-xs text-hr-text-secondary mt-1">{activity.time}</p>
-                      </div>
+        <SlideIn direction="up" delay={500}>
+          <Card className="h-full bg-white shadow-apple-sm">
+            <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
+              <CardTitle className="text-lg font-semibold">Recent Activities</CardTitle>
+              <Button variant="ghost" size="sm" className="text-hr-blue">
+                See all
+              </Button>
+            </CardHeader>
+            <CardContent className="px-4 py-4">
+              <div className="space-y-4">
+                {activities.map((activity, index) => (
+                  <div key={activity.id} className="flex p-3 rounded-lg hover:bg-hr-silver/5 transition-colors">
+                    <div className={cn("p-2 rounded-lg mr-3 self-start", activity.color)}>
+                      <activity.icon className="h-4 w-4" />
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </SlideIn>
-        </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">{activity.title}</h4>
+                      <p className="text-xs text-hr-text-secondary mt-0.5">{activity.description}</p>
+                      <p className="text-xs text-hr-text-secondary mt-1">{activity.time}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </SlideIn>
       </div>
       
+      {/* Third row: 2 equal-sized cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <SlideIn direction="up" delay={600}>
           <Card className="h-full bg-white shadow-apple-sm">

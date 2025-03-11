@@ -53,7 +53,8 @@ const Sidebar = ({ isOpen = false }) => {
           'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
           isActive || (to === '/dashboard' && pathname === '/') 
             ? 'bg-accent text-accent-foreground' 
-            : 'transparent'
+            : 'transparent',
+          effectiveCollapsed && !isMobile ? 'justify-center' : ''
         )
       }
     >
@@ -82,8 +83,8 @@ const Sidebar = ({ isOpen = false }) => {
             'w-64': !effectiveCollapsed,
             'w-[70px]': effectiveCollapsed,
             'fixed inset-y-[64px] left-0 z-30 shadow-lg': isMobile,
-            'relative': !isMobile,
-            'translate-x-0': !effectiveCollapsed,
+            'relative h-screen': !isMobile,
+            'translate-x-0': !effectiveCollapsed || !isMobile,
             '-translate-x-full': isMobile && effectiveCollapsed,
           }
         )}
@@ -143,7 +144,10 @@ const Sidebar = ({ isOpen = false }) => {
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-center items-center h-9 transition-all duration-200 mt-4"
+              className={cn(
+                "mt-4 transition-all duration-200",
+                effectiveCollapsed && !isMobile ? "w-10 h-10 p-0 mx-auto" : "w-full h-9"
+              )}
               onClick={handleToggleCollapse}
             >
               {effectiveCollapsed ? (
