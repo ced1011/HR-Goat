@@ -16,6 +16,7 @@ env:
   AWS_REGION: us-east-1
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
+  DB_PASSWORD: "hrportaladmin123"
 
 jobs:
   terraform-destroy:
@@ -86,7 +87,7 @@ jobs:
       if: steps.check_state.outputs.state_exists == 'true'
       run: |
         cd terraform
-        terraform plan -destroy -var="project_name=${{ env.PROJECT_NAME }}" -out=tfdestroyplan
+        terraform plan -destroy -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -out=tfdestroyplan
 
     - name: Terraform Destroy
       if: steps.check_state.outputs.state_exists == 'true'

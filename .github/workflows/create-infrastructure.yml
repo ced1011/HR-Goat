@@ -8,6 +8,7 @@ env:
   TF_STATE_BUCKET_PREFIX: "hrgoat-tfstate-do-not-delete"
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
+  DB_PASSWORD: "hrportaladmin123"
 
 jobs:
   terraform:
@@ -88,7 +89,7 @@ jobs:
     - name: Terraform Plan
       run: |
         cd terraform
-        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -out=tfplan
+        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -out=tfplan
 
     - name: Terraform Apply
       run: |

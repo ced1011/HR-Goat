@@ -409,7 +409,7 @@ resource "aws_db_instance" "hrgoat_db" {
   allocated_storage      = 20
   storage_type           = "gp2"
   username               = "admin"
-  password               = "hrportaladmin123"
+  password               = var.db_password
   parameter_group_name   = "default.mysql8.0"
   db_subnet_group_name   = aws_db_subnet_group.db_subnet_group.name
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
