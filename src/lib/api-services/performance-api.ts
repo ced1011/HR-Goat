@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 import { ApiResponse, PerformanceReview, PerformanceGoal, SkillAssessment } from '../api-models';
 
@@ -168,6 +167,25 @@ class PerformanceApiService {
         } else {
           throw new Error('Goal not found');
         }
+      } else if (endpoint === '/goals' && method === 'POST') {
+        // Create a new goal
+        const newGoal: PerformanceGoal = {
+          id: Math.max(0, ...mockPerformanceGoals.map(g => g.id)) + 1,
+          employeeId: data.employeeId,
+          title: data.title,
+          description: data.description || '',
+          category: data.category || 'professional',
+          targetDate: data.targetDate,
+          creationDate: new Date().toISOString().split('T')[0],
+          status: 'notstarted',
+          progress: 0,
+          metricType: data.metricType || 'completion',
+          targetValue: data.targetValue || 100,
+          currentValue: 0
+        };
+        
+        mockPerformanceGoals.push(newGoal);
+        responseData = newGoal;
       } else if (endpoint.startsWith('/skills/employee/') && method === 'GET') {
         const employeeId = parseInt(endpoint.split('/').pop() || '0');
         responseData = mockSkillAssessments.filter(s => s.employeeId === employeeId);
@@ -195,6 +213,10 @@ class PerformanceApiService {
   
   async updateGoal(goalId: number, data: Partial<PerformanceGoal>): Promise<ApiResponse<PerformanceGoal>> {
     return this.request<PerformanceGoal>(`/goals/${goalId}`, 'PUT', data);
+  }
+  
+  async createGoal(data: Omit<PerformanceGoal, 'id' | 'creationDate' | 'status' | 'progress' | 'currentValue'>): Promise<ApiResponse<PerformanceGoal>> {
+    return this.request<PerformanceGoal>('/goals', 'POST', data);
   }
   
   async getEmployeeSkills(employeeId: number): Promise<ApiResponse<SkillAssessment[]>> {

@@ -1832,3 +1832,330 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
     });
   }
 });
+
+// Performance Endpoints
+// Get employee performance reviews
+app.get('/api/performance/reviews/employee/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      // Get reviews for the employee
+      const [reviews] = await connection.query(
+        `SELECT r.*, 
+          e.name as reviewer_name, 
+          e.position as reviewer_position, 
+          e.avatar as reviewer_avatar
+         FROM performance_reviews r
+         LEFT JOIN employees e ON r.reviewer_id = e.id
+         WHERE r.employee_id = ?
+         ORDER BY r.period_end DESC`,
+        [employeeId]
+      );
+      
+      // Format the reviews
+      const formattedReviews = reviews.map(review => ({
+        id: review.id,
+        employeeId: review.employee_id,
+        reviewerId: review.reviewer_id,
+        periodStart: review.period_start,
+        periodEnd: review.period_end,
+        submissionDate: review.submission_date,
+        status: review.status,
+        overallRating: review.overall_rating,
+        strengths: review.strengths,
+        areasOfImprovement: review.areas_of_improvement,
+        comments: review.comments,
+        reviewer: review.reviewer_id ? {
+          id: review.reviewer_id,
+          name: review.reviewer_name,
+          position: review.reviewer_position,
+          avatar: review.reviewer_avatar
+        } : null
+      }));
+      
+      res.json({ 
+        success: true, 
+        data: formattedReviews 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get employee reviews:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get employee reviews: ${error.message}` 
+    });
+  }
+});
+
+// Get employee performance goals
+app.get('/api/performance/goals/employee/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const connection = await pool.getConnection();
+    
+    try {
+      // Create performance_goals table if it doesn't exist
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS performance_goals (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          employee_id INT NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          category ENUM('personal', 'professional', 'team') NOT NULL,
+          target_date DATE NOT NULL,
+          creation_date DATE NOT NULL,
+          status ENUM('notstarted', 'inprogress', 'completed', 'cancelled') NOT NULL DEFAULT 'notstarted',
+          progress INT NOT NULL DEFAULT 0,
+          metric_type VARCHAR(50),
+          target_value FLOAT,
+          current_value FLOAT DEFAULT 0,
+          FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+        )
+      `);
+      
+      // Get goals for the employee
+      const [goals] = await connection.query(
+        `SELECT * FROM performance_goals
+         WHERE employee_id = ?
+         ORDER BY target_date ASC`,
+        [employeeId]
+      );
+      
+      // Format the goals
+      const formattedGoals = goals.map(goal => ({
+        id: goal.id,
+        employeeId: goal.employee_id,
+        title: goal.title,
+        description: goal.description,
+        category: goal.category,
+        targetDate: goal.target_date,
+        creationDate: goal.creation_date,
+        status: goal.status,
+        progress: goal.progress,
+        metricType: goal.metric_type,
+        targetValue: goal.target_value,
+        currentValue: goal.current_value
+      }));
+      
+      res.json({ 
+        success: true, 
+        data: formattedGoals 
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to get employee goals:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to get employee goals: ${error.message}` 
+    });
+  }
+});
+
+// Create a new performance goal
+app.post('/api/performance/goals', async (req, res) => {
+  try {
+    const { 
+      employeeId, 
+      title, 
+      description, 
+      category, 
+      targetDate, 
+      metricType, 
+      targetValue 
+    } = req.body;
+    
+    // Validate required fields
+    if (!employeeId || !title || !targetDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: employeeId, title, targetDate'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Insert the new goal
+      const [result] = await connection.execute(
+        `INSERT INTO performance_goals (
+          employee_id, title, description, category, target_date, creation_date,
+          status, progress, metric_type, target_value, current_value
+        ) VALUES (?, ?, ?, ?, ?, CURDATE(), 'notstarted', 0, ?, ?, 0)`,
+        [
+          employeeId,
+          title,
+          description || '',
+          category || 'professional',
+          targetDate,
+          metricType || 'completion',
+          targetValue || 100
+        ]
+      );
+      
+      // Get the newly created goal
+      const [goals] = await connection.query(
+        `SELECT * FROM performance_goals WHERE id = ?`,
+        [result.insertId]
+      );
+      
+      if (goals.length === 0) {
+        throw new Error('Failed to retrieve created goal');
+      }
+      
+      const goal = goals[0];
+      
+      // Format the goal
+      const formattedGoal = {
+        id: goal.id,
+        employeeId: goal.employee_id,
+        title: goal.title,
+        description: goal.description,
+        category: goal.category,
+        targetDate: goal.target_date,
+        creationDate: goal.creation_date,
+        status: goal.status,
+        progress: goal.progress,
+        metricType: goal.metric_type,
+        targetValue: goal.target_value,
+        currentValue: goal.current_value
+      };
+      
+      res.status(201).json({
+        success: true,
+        message: 'Goal created successfully',
+        data: formattedGoal
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to create goal:', error);
+    res.status(500).json({
+      success: false,
+      message: `Failed to create goal: ${error.message}`
+    });
+  }
+});
+
+// Update a performance goal
+app.put('/api/performance/goals/:goalId', async (req, res) => {
+  try {
+    const { goalId } = req.params;
+    const updates = req.body;
+    
+    // Validate that there are updates
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No updates provided'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // Build the update query dynamically based on provided fields
+      const allowedFields = [
+        'title', 'description', 'category', 'target_date', 
+        'status', 'progress', 'metric_type', 'target_value', 'current_value'
+      ];
+      
+      const updateFields = [];
+      const updateValues = [];
+      
+      // Map camelCase fields to snake_case for database
+      const fieldMapping = {
+        title: 'title',
+        description: 'description',
+        category: 'category',
+        targetDate: 'target_date',
+        status: 'status',
+        progress: 'progress',
+        metricType: 'metric_type',
+        targetValue: 'target_value',
+        currentValue: 'current_value'
+      };
+      
+      // Build update query parts
+      Object.entries(updates).forEach(([key, value]) => {
+        const dbField = fieldMapping[key];
+        if (dbField && allowedFields.includes(dbField)) {
+          updateFields.push(`${dbField} = ?`);
+          updateValues.push(value);
+        }
+      });
+      
+      // If progress is updated to 100, automatically set status to completed
+      if (updates.progress === 100 && !updates.status) {
+        updateFields.push('status = ?');
+        updateValues.push('completed');
+      } else if (updates.progress !== undefined && updates.progress < 100 && !updates.status) {
+        // If progress is updated to less than 100, set status to inprogress if not already completed
+        updateFields.push('status = CASE WHEN status = "completed" THEN status ELSE ? END');
+        updateValues.push('inprogress');
+      }
+      
+      // Add goalId to values array
+      updateValues.push(goalId);
+      
+      // Execute update if there are fields to update
+      if (updateFields.length > 0) {
+        await connection.execute(
+          `UPDATE performance_goals SET ${updateFields.join(', ')} WHERE id = ?`,
+          updateValues
+        );
+      }
+      
+      // Get the updated goal
+      const [goals] = await connection.query(
+        `SELECT * FROM performance_goals WHERE id = ?`,
+        [goalId]
+      );
+      
+      if (goals.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Goal not found'
+        });
+      }
+      
+      const goal = goals[0];
+      
+      // Format the goal
+      const formattedGoal = {
+        id: goal.id,
+        employeeId: goal.employee_id,
+        title: goal.title,
+        description: goal.description,
+        category: goal.category,
+        targetDate: goal.target_date,
+        creationDate: goal.creation_date,
+        status: goal.status,
+        progress: goal.progress,
+        metricType: goal.metric_type,
+        targetValue: goal.target_value,
+        currentValue: goal.current_value
+      };
+      
+      res.json({
+        success: true,
+        message: 'Goal updated successfully',
+        data: formattedGoal
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Failed to update goal:', error);
+    res.status(500).json({
+      success: false,
+      message: `Failed to update goal: ${error.message}`
+    });
+  }
+});
