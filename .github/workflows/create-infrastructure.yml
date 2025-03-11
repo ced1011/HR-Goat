@@ -88,34 +88,34 @@ jobs:
       run: |
         cd terraform
         
-        # Clean Terraform outputs before storing them
-        clean_output() {
-          local output_value
-          output_value=$(terraform output -raw "$1" 2>/dev/null || echo "")
-          echo "$output_value" | sed 's/::debug::.*//g'
-        }
-    
-        # Export values after stripping unwanted debug messages
-        echo "app_instance_id=$(clean_output app_instance_id)" >> $GITHUB_ENV
-        echo "rds_endpoint=$(clean_output rds_endpoint)" >> $GITHUB_ENV
-        echo "ecr_repository_url=$(clean_output ecr_repository_url)" >> $GITHUB_ENV
-        echo "alb_dns_name=$(clean_output alb_dns_name)" >> $GITHUB_ENV
-        echo "app_alb_url=$(clean_output app_alb_url)" >> $GITHUB_ENV
-    
-        echo "app_instance_id=$(clean_output app_instance_id)" >> $GITHUB_OUTPUT
-        echo "rds_endpoint=$(clean_output rds_endpoint)" >> $GITHUB_OUTPUT
-        echo "ecr_repository_url=$(clean_output ecr_repository_url)" >> $GITHUB_OUTPUT
-        echo "alb_dns_name=$(clean_output alb_dns_name)" >> $GITHUB_OUTPUT
-        echo "app_alb_url=$(clean_output app_alb_url)" >> $GITHUB_OUTPUT
+        # Extract clean outputs from Terraform
+        APP_INSTANCE_ID=$(terraform output -raw app_instance_id 2>/dev/null || echo "")
+        RDS_ENDPOINT=$(terraform output -raw rds_endpoint 2>/dev/null || echo "")
+        ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url 2>/dev/null || echo "")
+        ALB_DNS_NAME=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
+        APP_ALB_URL=$(terraform output -raw app_alb_url 2>/dev/null || echo "")
         
-        # Debugging outputs
-        echo "Captured outputs:"
-        echo "app_instance_id: $(clean_output app_instance_id)"
-        echo "rds_endpoint: $(clean_output rds_endpoint)"
-        echo "ecr_repository_url: $(clean_output ecr_repository_url)"
-        echo "alb_dns_name: $(clean_output alb_dns_name)"
-        echo "app_alb_url: $(clean_output app_alb_url)"
-      
+        # Remove any debug information (everything before and including the first line with the command)
+        APP_INSTANCE_ID=$(echo "$APP_INSTANCE_ID" | grep -v "^\[command\]" | grep -v "^$" | head -1)
+        RDS_ENDPOINT=$(echo "$RDS_ENDPOINT" | grep -v "^\[command\]" | grep -v "^$" | head -1)
+        ECR_REPOSITORY_URL=$(echo "$ECR_REPOSITORY_URL" | grep -v "^\[command\]" | grep -v "^$" | head -1)
+        ALB_DNS_NAME=$(echo "$ALB_DNS_NAME" | grep -v "^\[command\]" | grep -v "^$" | head -1)
+        APP_ALB_URL=$(echo "$APP_ALB_URL" | grep -v "^\[command\]" | grep -v "^$" | head -1)
+        
+        # Print outputs for debugging
+        echo "Extracted outputs after cleaning:"
+        echo "APP_INSTANCE_ID: $APP_INSTANCE_ID"
+        echo "RDS_ENDPOINT: $RDS_ENDPOINT"
+        echo "ECR_REPOSITORY_URL: $ECR_REPOSITORY_URL"
+        echo "ALB_DNS_NAME: $ALB_DNS_NAME"
+        echo "APP_ALB_URL: $APP_ALB_URL"
+        
+        # Export to GitHub environment and output variables with the correct format
+        echo "app_instance_id=${APP_INSTANCE_ID}" >> "$GITHUB_OUTPUT"
+        echo "rds_endpoint=${RDS_ENDPOINT}" >> "$GITHUB_OUTPUT"
+        echo "ecr_repository_url=${ECR_REPOSITORY_URL}" >> "$GITHUB_OUTPUT"
+        echo "alb_dns_name=${ALB_DNS_NAME}" >> "$GITHUB_OUTPUT"
+        echo "app_alb_url=${APP_ALB_URL}" >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
     name: 'Build and Deploy Application'
