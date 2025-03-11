@@ -222,52 +222,16 @@ const Dashboard = () => {
         </SlideIn>
       </div>
 
-      {/* Key Metrics Section */}
-      <div className="mb-6">
-        <div className="flex items-center mb-4">
-          <BarChart4 className="h-5 w-5 text-blue-600 mr-2" />
-          <h2 className="text-lg font-semibold text-gray-800">Key Metrics</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <StaggeredContainer staggerDelay={100}>
-            {stats.slice(0, 4).map((stat, index) => (
-              <SlideIn key={stat.title} delay={index * 100} direction="up">
-                <Card hover className="h-full bg-white shadow-md border-0">
-                  <CardContent className="p-5 flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                      <div className="flex items-baseline space-x-2 mt-1.5">
-                        <h3 className="text-2xl font-bold">{stat.value}</h3>
-                        <span className={cn(
-                          "text-xs font-medium px-2 py-0.5 rounded-full",
-                          stat.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                        )}>
-                          {stat.change}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={cn("p-3 rounded-lg", stat.color)}>
-                      <stat.icon className="h-5 w-5" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </SlideIn>
-            ))}
-          </StaggeredContainer>
-        </div>
-      </div>
-      
-      {/* Secondary Metrics and Team Members Section */}
+      {/* Rearranged grid layout with 3 columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-        {/* Secondary metrics section */}
-        <div className="lg:col-span-2">
+        {/* Department Metrics - Left Column */}
+        <div>
           <div className="flex items-center mb-4">
             <PieChart className="h-5 w-5 text-purple-600 mr-2" />
             <h2 className="text-lg font-semibold text-gray-800">Department Metrics</h2>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 gap-5">
             <StaggeredContainer staggerDelay={100}>
               {stats.slice(4, 8).map((stat, index) => (
                 <SlideIn key={stat.title} delay={index * 100} direction="up">
@@ -296,7 +260,43 @@ const Dashboard = () => {
           </div>
         </div>
         
-        {/* Team Members Section */}
+        {/* Key Metrics - Middle Column */}
+        <div>
+          <div className="flex items-center mb-4">
+            <BarChart4 className="h-5 w-5 text-blue-600 mr-2" />
+            <h2 className="text-lg font-semibold text-gray-800">Key Metrics</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-5">
+            <StaggeredContainer staggerDelay={100}>
+              {stats.slice(0, 4).map((stat, index) => (
+                <SlideIn key={stat.title} delay={index * 100} direction="up">
+                  <Card hover className="h-full bg-white shadow-md border-0">
+                    <CardContent className="p-5 flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                        <div className="flex items-baseline space-x-2 mt-1.5">
+                          <h3 className="text-2xl font-bold">{stat.value}</h3>
+                          <span className={cn(
+                            "text-xs font-medium px-2 py-0.5 rounded-full",
+                            stat.change.startsWith('+') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                          )}>
+                            {stat.change}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={cn("p-3 rounded-lg", stat.color)}>
+                        <stat.icon className="h-5 w-5" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </SlideIn>
+              ))}
+            </StaggeredContainer>
+          </div>
+        </div>
+        
+        {/* Team Members - Right Column */}
         <SlideIn direction="up" delay={200}>
           <Card className="h-full bg-white shadow-md border-0">
             <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
