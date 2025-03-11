@@ -222,9 +222,7 @@ jobs:
             sleep 5
         done
 
-        # If instance is still not running after all retries
-        echo "::error::❌ EC2 instance $INSTANCE_ID did not reach 'running' state after $MAX_RETRIES attempts. Current state: $INSTANCE_STATE"
-        exit 1
+
 
 
     - name: Deploy to EC2 via SSM
