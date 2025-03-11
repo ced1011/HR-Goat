@@ -112,7 +112,10 @@ jobs:
         # Disable versioning
         echo "Disabling versioning..."
         aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Suspended
-        
+        aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json  
+        aws s3api delete-objects --bucket ${BUCKET_NAME} --delete "$(aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json
+        aws s3api delete-objects --bucket ${BUCKET_NAME} --delete "$(aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' --output json)"
+
         # Delete the bucket
         echo "Deleting bucket..."
         aws s3api delete-bucket --bucket ${BUCKET_NAME}
