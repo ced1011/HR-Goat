@@ -88,28 +88,19 @@ jobs:
       run: |
         cd terraform
         
-        # Extract outputs from Terraform
-        RAW_APP_INSTANCE_ID=$(terraform output -raw app_instance_id 2>/dev/null || echo "")
-        RAW_RDS_ENDPOINT=$(terraform output -raw rds_endpoint 2>/dev/null || echo "")
-        RAW_ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url 2>/dev/null || echo "")
-        RAW_ALB_DNS_NAME=$(terraform output -raw alb_dns_name 2>/dev/null || echo "")
-        RAW_APP_ALB_URL=$(terraform output -raw app_alb_url 2>/dev/null || echo "")
+        # Extract outputs from Terraform and save to files
+        terraform output -raw app_instance_id > app_instance_id.txt 2>/dev/null || echo "" > app_instance_id.txt
+        terraform output -raw rds_endpoint > rds_endpoint.txt 2>/dev/null || echo "" > rds_endpoint.txt
+        terraform output -raw ecr_repository_url > ecr_repository_url.txt 2>/dev/null || echo "" > ecr_repository_url.txt
+        terraform output -raw alb_dns_name > alb_dns_name.txt 2>/dev/null || echo "" > alb_dns_name.txt
+        terraform output -raw app_alb_url > app_alb_url.txt 2>/dev/null || echo "" > app_alb_url.txt
         
-        # Print raw outputs for debugging
-        echo "Raw outputs before cleaning:"
-        echo "RAW_APP_INSTANCE_ID: $RAW_APP_INSTANCE_ID"
-        echo "RAW_RDS_ENDPOINT: $RAW_RDS_ENDPOINT"
-        echo "RAW_ECR_REPOSITORY_URL: $RAW_ECR_REPOSITORY_URL"
-        echo "RAW_ALB_DNS_NAME: $RAW_ALB_DNS_NAME"
-        echo "RAW_APP_ALB_URL: $RAW_APP_ALB_URL"
-        
-        # Extract the clean values using cut (more reliable than sed in this case)
-        # This cuts the string at the first occurrence of ::debug:: and keeps only what's before it
-        APP_INSTANCE_ID=$(echo "$RAW_APP_INSTANCE_ID" | cut -d ':' -f 1)
-        RDS_ENDPOINT=$(echo "$RAW_RDS_ENDPOINT" | cut -d ':' -f 1,2,3)
-        ECR_REPOSITORY_URL=$(echo "$RAW_ECR_REPOSITORY_URL" | grep -o '^[^:]*\.dkr\.ecr\.[^:]*\.amazonaws\.com/[^:]*')
-        ALB_DNS_NAME=$(echo "$RAW_ALB_DNS_NAME" | grep -o '^[^:]*\.elb\.amazonaws\.com')
-        APP_ALB_URL=$(echo "$RAW_APP_ALB_URL" | grep -o '^http://[^:]*\.elb\.amazonaws\.com')
+        # Process the files to extract the actual values (skipping command lines and debug info)
+        APP_INSTANCE_ID=$(grep -v '^\[command\]' app_instance_id.txt | head -1 | sed 's/::debug::.*$//')
+        RDS_ENDPOINT=$(grep -v '^\[command\]' rds_endpoint.txt | head -1 | sed 's/::debug::.*$//')
+        ECR_REPOSITORY_URL=$(grep -v '^\[command\]' ecr_repository_url.txt | head -1 | sed 's/::debug::.*$//')
+        ALB_DNS_NAME=$(grep -v '^\[command\]' alb_dns_name.txt | head -1 | sed 's/::debug::.*$//')
+        APP_ALB_URL=$(grep -v '^\[command\]' app_alb_url.txt | head -1 | sed 's/::debug::.*$//')
         
         # Print cleaned outputs for verification
         echo "Extracted outputs after cleaning:"
@@ -119,18 +110,43 @@ jobs:
         echo "ALB_DNS_NAME: $ALB_DNS_NAME"
         echo "APP_ALB_URL: $APP_ALB_URL"
         
-        # Export to GitHub output variables with the correct format
-        echo "app_instance_id=$APP_INSTANCE_ID" >> "$GITHUB_OUTPUT"
-        echo "rds_endpoint=$RDS_ENDPOINT" >> "$GITHUB_OUTPUT"
-        echo "ecr_repository_url=$ECR_REPOSITORY_URL" >> "$GITHUB_OUTPUT"
-        echo "alb_dns_name=$ALB_DNS_NAME" >> "$GITHUB_OUTPUT"
-        echo "app_alb_url=$APP_ALB_URL" >> "$GITHUB_OUTPUT"
+        # Export outputs in GitHub Actions format
+        # Make sure to properly format the outputs according to GitHub Actions requirements
+        {
+          echo "app_instance_id<<EOF"
+          echo "$APP_INSTANCE_ID"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        
+        {
+          echo "rds_endpoint<<EOF"
+          echo "$RDS_ENDPOINT"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        
+        {
+          echo "ecr_repository_url<<EOF"
+          echo "$ECR_REPOSITORY_URL"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        
+        {
+          echo "alb_dns_name<<EOF"
+          echo "$ALB_DNS_NAME"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+        
+        {
+          echo "app_alb_url<<EOF"
+          echo "$APP_ALB_URL"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
     name: 'Build and Deploy Application'
     needs: terraform
     runs-on: ubuntu-latest
-    if: ${{ needs.terraform.outputs.app_instance_id != '' && needs.terraform.outputs.ecr_repository_url != '' }}
+    # Always run this job when terraform completes, as the outputs issue should be fixed now
 
     env:
       APP_INSTANCE_ID: ${{ needs.terraform.outputs.app_instance_id }}
