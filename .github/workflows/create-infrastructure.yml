@@ -221,9 +221,9 @@ jobs:
           DB_HOST=$(echo "${{ env.RDS_HOST }}" | cut -d: -f1)
         fi
         
-        # Wait for EC2 instance to be ready
-        echo "Waiting for EC2 instance to be ready..."
-        aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
+        # Wait for EC2 instance to be ready - disabled for now
+        # echo "Waiting for EC2 instance to be ready..."
+        # aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
         
         # Print all environment variables
         echo "Environment variables:"
