@@ -7,10 +7,7 @@ on:
         description: 'Type "destroy" to confirm'
         required: true
         type: string
-      bucket_name:
-        description: 'S3 bucket name containing Terraform state'
-        required: true
-        type: string
+
 
 env:
   AWS_REGION: us-east-1
@@ -48,24 +45,27 @@ jobs:
     - name: Validate bucket name
       id: validate_bucket
       run: |
-        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
-        echo "Using bucket name: ${BUCKET_NAME}"
+        BUCKET=aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]'
+        echo "Using bucket name: ${BUCKET}"
         
         # Check if bucket exists
-        if aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null; then
+        if aws s3api head-bucket --bucket ${BUCKET} 2>/dev/null; then
           echo "bucket_exists=true" >> $GITHUB_OUTPUT
-          echo "Bucket ${BUCKET_NAME} exists."
+          echo "bucket_name=${BUCKET}" >> $GITHUB_OUTPUT
+          echo "Bucket ${BUCKET} exists."
         else
           echo "bucket_exists=false" >> $GITHUB_OUTPUT
-          echo "Bucket ${BUCKET_NAME} does not exist."
+          echo "Bucket ${BUCKET} does not exist."
           exit 1
         fi
+      
+
 
     - name: Check if Terraform state exists
       id: check_state
       if: steps.validate_bucket.outputs.bucket_exists == 'true'
       run: |
-        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+        BUCKET_NAME="${{ steps.validate_bucket.outputs.bucket_name }}"
         
         if aws s3api head-object --bucket ${BUCKET_NAME} --key ${{ env.TF_STATE_KEY }} 2>/dev/null; then
           echo "state_exists=true" >> $GITHUB_OUTPUT
@@ -79,7 +79,7 @@ jobs:
       run: |
         cd terraform
         terraform init \
-          -backend-config="bucket=${{ github.event.inputs.bucket_name }}" \
+          -backend-config="bucket=${{ steps.validate_bucket.outputs.bucket_name }}" \
           -backend-config="key=${{ env.TF_STATE_KEY }}" \
           -backend-config="region=${{ env.AWS_REGION }}"
 
@@ -99,7 +99,7 @@ jobs:
     - name: Cleanup Terraform State and Bucket
       if: steps.check_state.outputs.state_exists == 'true'
       run: |
-        BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+        BUCKET_NAME="${{ steps.validate_bucket.outputs.bucket_name }}"
         
         # Remove all objects in the bucket
         echo "Removing all objects from bucket ${BUCKET_NAME}..."
@@ -113,7 +113,7 @@ jobs:
         echo "Disabling versioning..."
         aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Suspended
         aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json  
-        aws s3api delete-objects --bucket ${BUCKET_NAME} --delete "$(aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json
+        aws s3api delete-objects --bucket ${BUCKET_NAME} --delete "$(aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json)"
         aws s3api delete-objects --bucket ${BUCKET_NAME} --delete "$(aws s3api list-object-versions --bucket ${BUCKET_NAME} --query='{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' --output json)"
 
         # Delete the bucket

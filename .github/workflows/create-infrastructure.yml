@@ -89,13 +89,13 @@ jobs:
         cd terraform
         
         # Export required output values
-        echo "app_instance_id=$(terraform output -raw app_instance_id 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-        echo "rds_endpoint=$(terraform output -raw rds_endpoint 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-        echo "alb_dns_name=$(terraform output -raw alb_dns_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
-        echo "app_alb_url=$(terraform output -raw app_alb_url 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "app_instance_id=$(terraform output -raw app_instance_id 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+        echo "rds_endpoint=$(terraform output -raw rds_endpoint 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+        echo "alb_dns_name=$(terraform output -raw alb_dns_name 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+        echo "app_alb_url=$(terraform output -raw app_alb_url 2>/dev/null || echo '')" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
         
-        # Display outputs for debugging
+        # Debugging output values to check correctness
         echo "Captured outputs:"
         echo "app_instance_id: $(terraform output -raw app_instance_id 2>/dev/null || echo 'Not available')"
         echo "rds_endpoint: $(terraform output -raw rds_endpoint 2>/dev/null || echo 'Not available')"
