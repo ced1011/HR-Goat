@@ -6,4 +6,4 @@ ec2_instance_type = "t2.micro"
 key_name         = "your-key-pair-name"     # Replace with your SSH key pair name
 db_instance_class = "db.t3.micro"
 db_username      = "admin"
-db_password      = "YourStrongPassword123!" # Replace with a secure password 
+db_password      = "YourStrongPassword123!" # Replace with a secure password !
