@@ -61,19 +61,6 @@ jobs:
         # Enable versioning
         aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Enabled
         
-        # Add bucket policy to prevent deletion
-        aws s3api put-bucket-policy --bucket ${BUCKET_NAME} --policy '{
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Deny",
-              "Principal": "*",
-              "Action": "s3:DeleteBucket",
-              "Resource": "arn:aws:s3:::'${BUCKET_NAME}'"
-            }
-          ]
-        }'
-        
         # Store bucket name in a file that will be stored in S3 for reference by destroy workflow
         echo "BUCKET_NAME=${BUCKET_NAME}" > bucket-name.txt
         aws s3 cp bucket-name.txt s3://${BUCKET_NAME}/bucket-name.txt

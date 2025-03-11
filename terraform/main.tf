@@ -240,7 +240,7 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
 # Attach ECR policy to the role
 resource "aws_iam_role_policy_attachment" "ecr_policy" {
   role       = aws_iam_role.ssm_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonECR-FullAccess"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
 }
 
 # Create instance profile for EC2
