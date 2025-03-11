@@ -231,6 +231,80 @@ resource "aws_iam_role" "ssm_role" {
   })
 }
 
+# Create Jenkins IAM role for more permissions
+resource "aws_iam_role" "jenkins_role" {
+  name = "${var.project_name}-jenkins-role"
+  
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-jenkins-role"
+  })
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Create instance profile for EC2
+resource "aws_iam_instance_profile" "ssm_instance_profile" {
+  name = "${var.project_name}-ssm-instance-profile"
+  role = aws_iam_role.ssm_role.name
+}
+
+# Create instance profile for Jenkins
+resource "aws_iam_instance_profile" "jenkins_instance_profile" {
+  name = "${var.project_name}-jenkins-instance-profile"
+  role = aws_iam_role.jenkins_role.name
+}
+
+# Create Jenkins IAM policy
+resource "aws_iam_policy" "jenkins_policy" {
+  name        = "${var.project_name}-jenkins-policy"
+  description = "Policy for Jenkins instance with iam:PassRole and ec2:RunInstances permissions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "iam:PassRole"
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ec2:RunInstances"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Attach the Jenkins policy to the Jenkins role
+resource "aws_iam_role_policy_attachment" "jenkins_policy_attachment" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = aws_iam_policy.jenkins_policy.arn
+}
+
+# Attach SSM policy to the Jenkins role
+resource "aws_iam_role_policy_attachment" "jenkins_ssm_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Attach ECR policy to the Jenkins role
+resource "aws_iam_role_policy_attachment" "jenkins_ecr_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+}
+
 # Attach SSM policy to the role
 resource "aws_iam_role_policy_attachment" "ssm_policy" {
   role       = aws_iam_role.ssm_role.name
@@ -241,12 +315,6 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
 resource "aws_iam_role_policy_attachment" "ecr_policy" {
   role       = aws_iam_role.ssm_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
-}
-
-# Create instance profile for EC2
-resource "aws_iam_instance_profile" "ssm_instance_profile" {
-  name = "${var.project_name}-ssm-instance-profile"
-  role = aws_iam_role.ssm_role.name
 }
 
 # EC2 instance for the application
@@ -351,7 +419,7 @@ resource "aws_instance" "jenkins_instance" {
   instance_type          = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   subnet_id              = aws_subnet.public_a.id
-  iam_instance_profile   = aws_iam_instance_profile.ssm_instance_profile.name
+  iam_instance_profile   = aws_iam_instance_profile.jenkins_instance_profile.name
   
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-jenkins-instance"
