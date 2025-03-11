@@ -89,16 +89,25 @@ jobs:
         cd terraform
         
         # Export required output values
-        echo "app_instance_id=$(terraform output -raw app_instance_id)" >> $GITHUB_OUTPUT
-        echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
-        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
-        echo "alb_dns_name=$(terraform output -raw alb_dns_name)" >> $GITHUB_OUTPUT
-        echo "app_alb_url=$(terraform output -raw app_alb_url)" >> $GITHUB_OUTPUT
+        echo "app_instance_id=$(terraform output -raw app_instance_id 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "rds_endpoint=$(terraform output -raw rds_endpoint 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "ecr_repository_url=$(terraform output -raw ecr_repository_url 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "alb_dns_name=$(terraform output -raw alb_dns_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        echo "app_alb_url=$(terraform output -raw app_alb_url 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+        
+        # Display outputs for debugging
+        echo "Captured outputs:"
+        echo "app_instance_id: $(terraform output -raw app_instance_id 2>/dev/null || echo 'Not available')"
+        echo "rds_endpoint: $(terraform output -raw rds_endpoint 2>/dev/null || echo 'Not available')"
+        echo "ecr_repository_url: $(terraform output -raw ecr_repository_url 2>/dev/null || echo 'Not available')"
+        echo "alb_dns_name: $(terraform output -raw alb_dns_name 2>/dev/null || echo 'Not available')"
+        echo "app_alb_url: $(terraform output -raw app_alb_url 2>/dev/null || echo 'Not available')"
 
   build-and-deploy:
     name: 'Build and Deploy Application'
     needs: terraform
     runs-on: ubuntu-latest
+    if: ${{ needs.terraform.outputs.app_instance_id != '' && needs.terraform.outputs.ecr_repository_url != '' }}
 
     env:
       APP_INSTANCE_ID: ${{ needs.terraform.outputs.app_instance_id }}
@@ -177,9 +186,32 @@ jobs:
     - name: Output Deployment Info
       run: |
         echo "Application deployed successfully!"
-        echo "Application Load Balancer URL: ${{ env.APP_ALB_URL }}"
-        echo "Application Load Balancer DNS: ${{ env.ALB_DNS_NAME }}"
-        echo "Direct EC2 URL: http://$(aws ec2 describe-instances --instance-ids ${{ env.APP_INSTANCE_ID }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text):3000"
-        echo "Jenkins server should be accessible at: http://$(aws ec2 describe-instances --filters 'Name=tag:Name,Values=${{ env.PROJECT_NAME }}-jenkins-instance' --query 'Reservations[0].Instances[0].PublicIpAddress' --output text):8080"
+        
+        if [ -n "${{ env.APP_ALB_URL }}" ]; then
+          echo "Application Load Balancer URL: ${{ env.APP_ALB_URL }}"
+        else
+          echo "Application Load Balancer URL: Not available"
+        fi
+        
+        if [ -n "${{ env.ALB_DNS_NAME }}" ]; then
+          echo "Application Load Balancer DNS: ${{ env.ALB_DNS_NAME }}"
+        else
+          echo "Application Load Balancer DNS: Not available"
+        fi
+        
+        EC2_IP=$(aws ec2 describe-instances --instance-ids ${{ env.APP_INSTANCE_ID }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text 2>/dev/null)
+        if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "None" ]; then
+          echo "Direct EC2 URL: http://$EC2_IP:3000"
+        else
+          echo "Direct EC2 URL: Not available"
+        fi
+        
+        JENKINS_IP=$(aws ec2 describe-instances --filters 'Name=tag:Name,Values=${{ env.PROJECT_NAME }}-jenkins-instance' --query 'Reservations[0].Instances[0].PublicIpAddress' --output text 2>/dev/null)
+        if [ -n "$JENKINS_IP" ] && [ "$JENKINS_IP" != "None" ]; then
+          echo "Jenkins server should be accessible at: http://$JENKINS_IP:8080"
+        else
+          echo "Jenkins server: Not available or still starting up"
+        fi
+        
         echo "Terraform state is stored in S3 bucket: ${{ env.TF_STATE_BUCKET }}"
         echo "To destroy this infrastructure, use the Destroy Infrastructure workflow with this bucket name." 
