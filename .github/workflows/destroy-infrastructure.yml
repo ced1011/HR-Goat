@@ -45,7 +45,7 @@ jobs:
     - name: Validate bucket name
       id: validate_bucket
       run: |
-        BUCKET=aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]'
+        BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]')
         echo "Using bucket name: ${BUCKET}"
         
         # Check if bucket exists
