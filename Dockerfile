@@ -7,8 +7,16 @@ RUN apk add --no-cache socat
 # Create app directory
 WORKDIR /app
 
-# Copy frontend build
-COPY dist/ ./dist/
+# Copy source files for building frontend
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html ./
+COPY package.json package-lock.json vite.config.ts tsconfig.json tsconfig.node.json ./
+COPY postcss.config.js tailwind.config.ts ./
+
+# Install dependencies and build frontend
+RUN npm install
+RUN npm run build
 
 # Copy backend files
 COPY server/ ./server/
