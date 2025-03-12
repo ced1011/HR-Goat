@@ -334,11 +334,10 @@ RUN npm init -y && \
     echo "      console.error('Error parsing request body:', e);" >> frontend-server.js && \
     echo "    }" >> frontend-server.js && \
     echo "    console.log('Resetting calendar events with payload:', requestBody);" >> frontend-server.js && \
-    echo "    
-    // Set a timeout for the fetch operation" >> frontend-server.js && \
-    echo "    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timed out')), 3000)
-    );" >> frontend-server.js && \
+    echo "    // Set a timeout for the fetch operation" >> frontend-server.js && \
+    echo "    const timeoutPromise = new Promise((_, reject) => {" >> frontend-server.js && \
+    echo "      setTimeout(() => reject(new Error('Request timed out')), 3000);" >> frontend-server.js && \
+    echo "    });" >> frontend-server.js && \
     echo "    
     Promise.race([" >> frontend-server.js && \
     echo "      fetch(BACKEND_URL + '/api/reset-calendar-events', {" >> frontend-server.js && \
