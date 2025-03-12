@@ -338,17 +338,16 @@ RUN npm init -y && \
     echo "    const timeoutPromise = new Promise((_, reject) => {" >> frontend-server.js && \
     echo "      setTimeout(() => reject(new Error('Request timed out')), 3000);" >> frontend-server.js && \
     echo "    });" >> frontend-server.js && \
-    echo "    
-    Promise.race([" >> frontend-server.js && \
+    echo "    Promise.race([" >> frontend-server.js && \
     echo "      fetch(BACKEND_URL + '/api/reset-calendar-events', {" >> frontend-server.js && \
     echo "        method: 'POST'," >> frontend-server.js && \
     echo "        headers: {" >> frontend-server.js && \
     echo "          'Content-Type': 'application/json'," >> frontend-server.js && \
-    echo "          'user-id': req.headers['user-id'] || '',
-    echo "          'Authorization': req.headers['authorization'] || '',
-    echo "        },
-    echo "        body: bodyData
-    echo "      }),
+    echo "          'user-id': req.headers['user-id'] || ''," >> frontend-server.js && \
+    echo "          'Authorization': req.headers['authorization'] || ''," >> frontend-server.js && \
+    echo "        }," >> frontend-server.js && \
+    echo "        body: bodyData" >> frontend-server.js && \
+    echo "      })," >> frontend-server.js && \
     echo "      timeoutPromise
     echo "    ])
     echo "    .then(response => {
