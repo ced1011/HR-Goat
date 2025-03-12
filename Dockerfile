@@ -348,32 +348,32 @@ RUN npm init -y && \
     echo "        }," >> frontend-server.js && \
     echo "        body: bodyData" >> frontend-server.js && \
     echo "      })," >> frontend-server.js && \
-    echo "      timeoutPromise
-    echo "    ])
-    echo "    .then(response => {
-    echo "      if (response.ok) {
-    echo "        return response.json();
-    echo "      } else if (response.status === 404) {
-    echo "        // Return a mock response if the endpoint doesn't exist
-    echo "        console.log('Reset calendar events endpoint not found, returning mock success');
-    echo "        return { success: true, message: 'Calendar events reset successfully (mock)' };
-    echo "      } else {
-    echo "        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-    echo "      }
-    echo "    })
-    echo "    .then(data => {
-    echo "      res.json(data);
-    echo "    })
-    echo "    .catch(error => {
-    echo "      console.error('Error resetting calendar events:', error);
-    echo "      // Always return a successful response to prevent frontend errors
-    echo "      res.json({ 
-    echo "        success: true, 
-    echo "        message: 'Calendar events reset operation completed', 
-    echo "        note: 'This is a mock response due to backend issues'
-    echo "      });
-    echo "    });
-    echo "  });
+    echo "      timeoutPromise" >> frontend-server.js && \
+    echo "    ])" >> frontend-server.js && \
+    echo "    .then(response => {" >> frontend-server.js && \
+    echo "      if (response.ok) {" >> frontend-server.js && \
+    echo "        return response.json();" >> frontend-server.js && \
+    echo "      } else if (response.status === 404) {" >> frontend-server.js && \
+    echo "        // Return a mock response if the endpoint doesn't exist" >> frontend-server.js && \
+    echo "        console.log('Reset calendar events endpoint not found, returning mock success');" >> frontend-server.js && \
+    echo "        return { success: true, message: 'Calendar events reset successfully (mock)' };" >> frontend-server.js && \
+    echo "      } else {" >> frontend-server.js && \
+    echo "        throw new Error(`Server error: ${response.status} ${response.statusText}`);" >> frontend-server.js && \
+    echo "      }" >> frontend-server.js && \
+    echo "    })" >> frontend-server.js && \
+    echo "    .then(data => {" >> frontend-server.js && \
+    echo "      res.json(data);" >> frontend-server.js && \
+    echo "    })" >> frontend-server.js && \
+    echo "    .catch(error => {" >> frontend-server.js && \
+    echo "      console.error('Error resetting calendar events:', error);" >> frontend-server.js && \
+    echo "      // Always return a successful response to prevent frontend errors" >> frontend-server.js && \
+    echo "      res.json({ " >> frontend-server.js && \
+    echo "        success: true, " >> frontend-server.js && \
+    echo "        message: 'Calendar events reset operation completed', " >> frontend-server.js && \
+    echo "        note: 'This is a mock response due to backend issues'" >> frontend-server.js && \
+    echo "      });" >> frontend-server.js && \
+    echo "    });" >> frontend-server.js && \
+    echo "  });" >> frontend-server.js && \
     echo "});" >> frontend-server.js && \
     echo "" >> frontend-server.js && \
     echo "// Use the proxy middleware for all other /api routes" >> frontend-server.js && \
