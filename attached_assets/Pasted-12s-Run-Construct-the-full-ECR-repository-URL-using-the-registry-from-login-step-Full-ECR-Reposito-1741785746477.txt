@@ -1,0 +1,139 @@
+12s
+Run # Construct the full ECR repository URL using the registry from login step
+Full ECR Repository URL: ***.dkr.ecr.us-east-1.amazonaws.com/hrgoat-app-repository
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.66kB 0.0s done
+#1 DONE 0.0s
+
+#2 [auth] library/node:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:16-alpine
+#3 DONE 0.4s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 237B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 1.46MB 0.0s done
+#5 DONE 0.1s
+
+#6 [ 1/24] FROM docker.io/library/node:16-alpine@sha256:a1f9d027912b58a7c75be7716c97cfbc6d3099f3a97ed84aa490be9dee20e787
+#6 resolve docker.io/library/node:16-alpine@sha256:a1f9d027912b58a7c75be7716c97cfbc6d3099f3a97ed84aa490be9dee20e787 done
+#6 sha256:a1f9d027912b58a7c75be7716c97cfbc6d3099f3a97ed84aa490be9dee20e787 1.43kB / 1.43kB done
+#6 sha256:72e89a86be58c922ed7b1475e5e6f151537676470695dd106521738b060e139d 1.16kB / 1.16kB done
+#6 sha256:2573171e0124bb95d14d128728a52a97bb917ef45d7c4fa8cfe76bc44aa78b73 6.73kB / 6.73kB done
+#6 sha256:7264a8db6415046d36d16ba98b79778e18accee6ffa71850405994cffa9be7de 2.10MB / 3.40MB 0.1s
+#6 sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 0B / 36.63MB 0.1s
+#6 sha256:93b3025fe10392717d06ec0d012a9ffa2039d766a322aac899c6831dd93382c2 0B / 2.34MB 0.1s
+#6 sha256:7264a8db6415046d36d16ba98b79778e18accee6ffa71850405994cffa9be7de 3.40MB / 3.40MB 0.1s done
+#6 sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 9.44MB / 36.63MB 0.2s
+#6 sha256:93b3025fe10392717d06ec0d012a9ffa2039d766a322aac899c6831dd93382c2 2.34MB / 2.34MB 0.1s done
+#6 extracting sha256:7264a8db6415046d36d16ba98b79778e18accee6ffa71850405994cffa9be7de 0.1s done
+#6 sha256:d9059661ce70092af66d2773666584fc8addcb78a2be63f720022f4875577ea9 452B / 452B 0.2s done
+#6 sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 34.60MB / 36.63MB 0.4s
+#6 sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 36.63MB / 36.63MB 0.4s done
+#6 extracting sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 0.1s
+#6 extracting sha256:eee371b9ce3ffdbb8aa703b9a14d318801ddc3468f096bb6cfeabbeb715147f9 1.2s done
+#6 extracting sha256:93b3025fe10392717d06ec0d012a9ffa2039d766a322aac899c6831dd93382c2
+#6 extracting sha256:93b3025fe10392717d06ec0d012a9ffa2039d766a322aac899c6831dd93382c2 0.0s done
+#6 extracting sha256:d9059661ce70092af66d2773666584fc8addcb78a2be63f720022f4875577ea9 done
+#6 DONE 2.4s
+
+#7 [ 2/24] RUN apk add --no-cache socat
+#7 0.167 fetch https://dl-cdn.alpinelinux.org/alpine/v3.18/main/x86_64/APKINDEX.tar.gz
+#7 0.275 fetch https://dl-cdn.alpinelinux.org/alpine/v3.18/community/x86_64/APKINDEX.tar.gz
+#7 0.514 (1/4) Installing ncurses-terminfo-base (6.4_p20230506-r0)
+#7 0.525 (2/4) Installing libncursesw (6.4_p20230506-r0)
+#7 0.539 (3/4) Installing readline (8.2.1-r1)
+#7 0.551 (4/4) Installing socat (1.7.4.4-r1)
+#7 0.564 Executing busybox-1.36.1-r2.trigger
+#7 0.570 OK: 11 MiB in 21 packages
+#7 DONE 0.6s
+
+#8 [ 3/24] WORKDIR /app
+#8 DONE 0.0s
+
+#9 [ 4/24] COPY src/ ./src/
+#9 DONE 0.1s
+
+#10 [ 5/24] COPY public/ ./public/
+#10 DONE 0.0s
+
+#11 [ 6/24] COPY index.html ./
+#11 DONE 0.0s
+
+#12 [ 7/24] COPY package.json package-lock.json vite.config.ts tsconfig.json tsconfig.node.json ./
+#12 DONE 0.0s
+
+#13 [ 8/24] COPY postcss.config.js tailwind.config.ts ./
+#13 DONE 0.0s
+
+#14 [ 9/24] RUN npm install
+#14 1.485 npm notice 
+#14 1.486 npm notice New major version of npm available! 8.19.4 -> 11.2.0
+#14 1.486 npm notice Changelog: <https://github.com/npm/cli/releases/tag/v11.2.0>
+#14 1.486 npm notice Run `npm install -g npm@11.2.0` to update!
+#14 1.486 npm notice 
+#14 1.488 npm ERR! code ERESOLVE
+#14 1.513 npm ERR! ERESOLVE could not resolve
+#14 1.513 npm ERR! 
+#14 1.513 npm ERR! While resolving: next-themes@0.3.0
+#14 1.513 npm ERR! Found: react@19.0.0
+#14 1.513 npm ERR! node_modules/react
+#14 1.513 npm ERR!   react@"^19.0.0" from the root project
+#14 1.513 npm ERR!   peer react@">=16.8.0" from @floating-ui/react-dom@2.1.2
+#14 1.513 npm ERR!   node_modules/@floating-ui/react-dom
+#14 1.513 npm ERR!     @floating-ui/react-dom@"^2.0.0" from @radix-ui/react-popper@1.2.2
+#14 1.513 npm ERR!     node_modules/@radix-ui/react-popper
+#14 1.513 npm ERR!       @radix-ui/react-popper@"1.2.2" from @radix-ui/react-hover-card@1.1.6
+#14 1.513 npm ERR!       node_modules/@radix-ui/react-hover-card
+#14 1.513 npm ERR!         @radix-ui/react-hover-card@"^1.1.1" from the root project
+#14 1.514 npm ERR!       4 more (@radix-ui/react-menu, @radix-ui/react-popover, ...)
+#14 1.514 npm ERR!   70 more (@radix-ui/react-accordion, ...)
+#14 1.514 npm ERR! 
+#14 1.514 npm ERR! Could not resolve dependency:
+#14 1.514 npm ERR! peer react@"^16.8 || ^17 || ^18" from next-themes@0.3.0
+#14 1.514 npm ERR! node_modules/next-themes
+#14 1.514 npm ERR!   next-themes@"^0.3.0" from the root project
+#14 1.514 npm ERR! 
+#14 1.514 npm ERR! Conflicting peer dependency: react@18.3.1
+#14 1.514 npm ERR! node_modules/react
+#14 1.514 npm ERR!   peer react@"^16.8 || ^17 || ^18" from next-themes@0.3.0
+#14 1.514 npm ERR!   node_modules/next-themes
+#14 1.514 npm ERR!     next-themes@"^0.3.0" from the root project
+#14 1.514 npm ERR! 
+#14 1.514 npm ERR! Fix the upstream dependency conflict, or retry
+#14 1.514 npm ERR! this command with --force, or --legacy-peer-deps
+#14 1.514 npm ERR! to accept an incorrect (and potentially broken) dependency resolution.
+#14 1.514 npm ERR! 
+#14 1.514 npm ERR! See /root/.npm/eresolve-report.txt for a full report.
+#14 1.516 
+#14 1.516 npm ERR! A complete log of this run can be found in:
+#14 1.516 npm ERR!     /root/.npm/_logs/2025-03-12T13_20_34_519Z-debug-0.log
+#14 ERROR: process "/bin/sh -c npm install" did not complete successfully: exit code: 1
+------
+ > [ 9/24] RUN npm install:
+1.514 npm ERR!     next-themes@"^0.3.0" from the root project
+1.514 npm ERR! 
+1.514 npm ERR! Fix the upstream dependency conflict, or retry
+1.514 npm ERR! this command with --force, or --legacy-peer-deps
+1.514 npm ERR! to accept an incorrect (and potentially broken) dependency resolution.
+1.514 npm ERR! 
+1.514 npm ERR! See /root/.npm/eresolve-report.txt for a full report.
+1.516 
+1.516 npm ERR! A complete log of this run can be found in:
+1.516 npm ERR!     /root/.npm/_logs/2025-03-12T13_20_34_519Z-debug-0.log
+------
+Dockerfile:18
+--------------------
+  16 |     
+  17 |     # Install dependencies and build frontend
+  18 | >>> RUN npm install
+  19 |     RUN npm run build
+  20 |     
+--------------------
+ERROR: failed to solve: process "/bin/sh -c npm install" did not complete successfully: exit code: 1
