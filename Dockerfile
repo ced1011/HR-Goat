@@ -15,7 +15,7 @@ COPY package.json package-lock.json vite.config.ts tsconfig.json tsconfig.node.j
 COPY postcss.config.js tailwind.config.ts ./
 
 # Install dependencies and build frontend
-RUN npm install
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # Copy backend files
