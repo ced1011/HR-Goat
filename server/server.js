@@ -130,7 +130,8 @@ async function initializeDatabase() {
           status ENUM('active', 'onleave', 'terminated') NOT NULL DEFAULT 'active',
           manager VARCHAR(100),
           salary DECIMAL(10, 2),
-          bio TEXT
+          bio TEXT,
+          metadata TEXT
         )
       `);
       
@@ -2040,19 +2041,21 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
           const [result] = await connection.query(
             `INSERT INTO employees (
               name, position, department, email, phone, location, 
-              hire_date, status, manager, salary, bio
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              hire_date, status, manager, salary, bio, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               employee.name,
               employee.position,
               employee.department,
               employee.email,
               employee.phone || null,
-              employee.hire_date,
+              employee.location || null,
+              employee.hire_date || new Date().toISOString().split('T')[0],
               employee.status || 'active',
               employee.manager || null,
               employee.salary || null,
-              employee.bio || null
+              employee.bio || null,
+              employee.metadata || null
             ]
           );
           
