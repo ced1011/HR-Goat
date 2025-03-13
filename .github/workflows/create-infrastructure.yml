@@ -95,14 +95,38 @@ jobs:
         # Check if core resources were created by querying AWS directly
         echo "Checking for resources created by Terraform..."
         
-        # 1. Get EC2 instance by tag
-        APP_INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-app-instance" --query "Reservations[0].Instances[0].InstanceId" --output text)
+        # 1. Get the latest EC2 instance by tag and creation time, excluding terminated instances
+        echo "Finding the latest app instance..."
+        APP_INSTANCE_ID=$(aws ec2 describe-instances \
+          --filters \
+            "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-app-instance" \
+            "Name=instance-state-name,Values=pending,running" \
+          --query "Reservations[*].Instances[*].[InstanceId,LaunchTime]" \
+          --output text | sort -k2 -r | head -n1 | awk '{print $1}')
+        
+        # If not found with primary tag, try project tag
         if [ "$APP_INSTANCE_ID" == "None" ] || [ -z "$APP_INSTANCE_ID" ]; then
           echo "Warning: Could not find app instance with tag Name=${{ env.PROJECT_NAME }}-app-instance"
-          # Try to fallback to any instance with our project tag
-          APP_INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag-key,Values=Project" "Name=tag-value,Values=${{ env.PROJECT_NAME }}" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          # Try to fallback to any instance with our project tag, still filtering for non-terminated
+          APP_INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag-key,Values=Project" \
+              "Name=tag-value,Values=${{ env.PROJECT_NAME }}" \
+              "Name=instance-state-name,Values=pending,running" \
+            --query "Reservations[*].Instances[*].[InstanceId,LaunchTime]" \
+            --output text | sort -k2 -r | head -n1 | awk '{print $1}')
         fi
-        echo "Found EC2 instance ID: $APP_INSTANCE_ID"
+        
+        # Verify the instance is in a valid state
+        if [ -n "$APP_INSTANCE_ID" ]; then
+          INSTANCE_STATE=$(aws ec2 describe-instances \
+            --instance-ids "$APP_INSTANCE_ID" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)
+          echo "Found EC2 instance ID: $APP_INSTANCE_ID (State: $INSTANCE_STATE)"
+        else
+          echo "Warning: Could not find any running or pending app instances"
+        fi
         
         # 2. Get RDS instance by tag/identifier
         RDS_ENDPOINT=$(aws rds describe-db-instances --db-instance-identifier "${{ env.PROJECT_NAME }}-db" --query "DBInstances[0].Endpoint.Address" --output text 2>/dev/null)
@@ -186,6 +210,19 @@ jobs:
           exit 1
         fi
 
+    - name: Build frontend and then Docker image
+      run: |
+        # First build the frontend to generate the dist directory
+        echo "Building frontend..."
+        npm run build
+        
+        # Check if the build was successful
+        if [ ! -d "./dist" ]; then
+          echo "::error::Frontend build failed, dist directory not created"
+          exit 1
+        fi
+        echo "Frontend build successful!"
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
       env:
@@ -208,6 +245,13 @@ jobs:
         INSTANCE_ID="${{ env.APP_INSTANCE_ID }}"  # Instance ID
         REGION="us-east-1"  # AWS region
         COUNT=0
+        
+        if [ -z "$INSTANCE_ID" ]; then
+          echo "::error::No valid EC2 instance ID found. Cannot continue verification."
+          exit 1
+        fi
+        
+        echo "Verifying state of EC2 instance: $INSTANCE_ID"
 
         until [ "$INSTANCE_STATE" == "running" ] || [ "$COUNT" -ge "$MAX_RETRIES" ]; do
             INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].State.Name" --output text)
@@ -222,8 +266,10 @@ jobs:
             sleep 5
         done
 
-
-
+        # If we reach here and state is not running, give a proper error
+        if [ "$INSTANCE_STATE" != "running" ]; then
+          echo "::warning::EC2 instance $INSTANCE_ID failed to reach running state after $MAX_RETRIES attempts. Current state: $INSTANCE_STATE"
+        fi
 
     - name: Deploy to EC2 via SSM
       run: |
