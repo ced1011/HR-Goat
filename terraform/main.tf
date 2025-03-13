@@ -317,6 +317,12 @@ resource "aws_iam_role_policy_attachment" "ecr_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
 }
 
+# Add S3 access for XDR installation
+resource "aws_iam_role_policy_attachment" "s3_policy" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
 # EC2 instance for the application
 resource "aws_instance" "app_instance" {
   ami                    = var.ec2_ami_id
