@@ -603,18 +603,31 @@ jobs:
                 }
                 
                 if [ "$XDR_INSTALL_SUCCESS" = true ]; then
-                  # Get both instance IDs
-                  cd terraform
-                  APP_INSTANCE_ID=$(terraform output -raw app_instance_id)
-                  JENKINS_INSTANCE_ID=$(terraform output -raw jenkins_instance_id)
-                  cd ..
+                  # Get both instance IDs using AWS CLI instead of Terraform
+                  echo "Getting instance IDs using AWS CLI..."
+                  
+                  # Get App Instance ID (already available from env variable)
+                  APP_INSTANCE_ID="${{ env.APP_INSTANCE_ID }}"
+                  
+                  # Get Jenkins Instance ID directly from AWS using tags
+                  JENKINS_INSTANCE_ID=$(aws ec2 describe-instances \
+                    --filters "Name=tag:Name,Values=${{ env.PROJECT_NAME }}-jenkins-instance" "Name=instance-state-name,Values=pending,running" \
+                    --query "Reservations[*].Instances[*].[InstanceId]" \
+                    --output text | head -n1)
                   
                   echo "App Instance ID: $APP_INSTANCE_ID"
                   echo "Jenkins Instance ID: $JENKINS_INSTANCE_ID"
                   
                   # Install XDR on both instances
                   for INSTANCE_ID in "$APP_INSTANCE_ID" "$JENKINS_INSTANCE_ID"; do
+                    # Skip if instance ID is empty
+                    if [ -z "$INSTANCE_ID" ]; then
+                      echo "::warning::Empty instance ID, skipping XDR installation for this instance"
+                      continue
+                    fi
+                    
                     echo "Running XDR installation on instance $INSTANCE_ID..."
+
                     # Create the SSM command to download and run the installation script
                     XDR_COMMANDS='["aws s3 cp s3://'$S3_BUCKET'/xdr_install.sh /tmp/xdr_install.sh", "chmod +x /tmp/xdr_install.sh", "/tmp/xdr_install.sh '$S3_BUCKET'/'$TAR_FILENAME'"]'
                     
