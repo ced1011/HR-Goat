@@ -210,18 +210,6 @@ jobs:
           exit 1
         fi
 
-    - name: Build frontend and then Docker image
-      run: |
-        # First build the frontend to generate the dist directory
-        echo "Building frontend..."
-        npm run build
-        
-        # Check if the build was successful
-        if [ ! -d "./dist" ]; then
-          echo "::error::Frontend build failed, dist directory not created"
-          exit 1
-        fi
-        echo "Frontend build successful!"
 
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
