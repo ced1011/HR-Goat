@@ -299,6 +299,12 @@ resource "aws_iam_role_policy_attachment" "jenkins_ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Attach S3 access for XDR installation to the Jenkins role
+resource "aws_iam_role_policy_attachment" "jenkins_s3_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
 # Attach ECR policy to the Jenkins role
 resource "aws_iam_role_policy_attachment" "jenkins_ecr_policy" {
   role       = aws_iam_role.jenkins_role.name
@@ -453,6 +459,15 @@ resource "aws_instance" "jenkins_instance" {
               
               # Add jenkins user to docker group
               usermod -aG docker jenkins
+              
+              # Create directories for Cortex XDR installation
+              mkdir -p /etc/panw
+              mkdir -p /var/log
+              touch /var/log/xdr_install.log
+              chmod 666 /var/log/xdr_install.log
+              
+              # Install dependencies that might be needed for XDR
+              yum install -y selinux-policy-devel.noarch
               EOF
 
   root_block_device {

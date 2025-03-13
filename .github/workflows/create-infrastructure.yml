@@ -603,35 +603,45 @@ jobs:
                 }
                 
                 if [ "$XDR_INSTALL_SUCCESS" = true ]; then
-                  echo "Running XDR installation on EC2 instance..."
-                  # Create the SSM command to download and run the installation script
-                  XDR_COMMANDS='["aws s3 cp s3://'$S3_BUCKET'/xdr_install.sh /tmp/xdr_install.sh", "chmod +x /tmp/xdr_install.sh", "/tmp/xdr_install.sh '$S3_BUCKET'/'$TAR_FILENAME'"]'
+                  # Get both instance IDs
+                  cd terraform
+                  APP_INSTANCE_ID=$(terraform output -raw app_instance_id)
+                  JENKINS_INSTANCE_ID=$(terraform output -raw jenkins_instance_id)
+                  cd ..
                   
-                  # Execute the installation via SSM
-                  aws ssm send-command \
-                    --instance-ids ${{ env.APP_INSTANCE_ID }} \
-                    --document-name "AWS-RunShellScript" \
-                    --parameters commands="$XDR_COMMANDS" \
-                    --query "Command.CommandId" \
-                    --output text > ssm_command_id.txt || {
-                      echo "::warning::Failed to send SSM command to EC2 instance. XDR installation skipped."
-                      echo "::notice::XDR Agent installation failed: SSM command error"
-                      XDR_INSTALL_SUCCESS=false
-                    }
+                  echo "App Instance ID: $APP_INSTANCE_ID"
+                  echo "Jenkins Instance ID: $JENKINS_INSTANCE_ID"
                   
-                  if [ "$XDR_INSTALL_SUCCESS" = true ]; then
+                  # Install XDR on both instances
+                  for INSTANCE_ID in "$APP_INSTANCE_ID" "$JENKINS_INSTANCE_ID"; do
+                    echo "Running XDR installation on instance $INSTANCE_ID..."
+                    # Create the SSM command to download and run the installation script
+                    XDR_COMMANDS='["aws s3 cp s3://'$S3_BUCKET'/xdr_install.sh /tmp/xdr_install.sh", "chmod +x /tmp/xdr_install.sh", "/tmp/xdr_install.sh '$S3_BUCKET'/'$TAR_FILENAME'"]'
+                    
+                    # Execute the installation via SSM
+                    echo "Sending SSM command to instance $INSTANCE_ID..."
+                    aws ssm send-command \
+                      --instance-ids "$INSTANCE_ID" \
+                      --document-name "AWS-RunShellScript" \
+                      --parameters commands="$XDR_COMMANDS" \
+                      --query "Command.CommandId" \
+                      --output text > "ssm_command_id_${INSTANCE_ID}.txt" || {
+                        echo "::warning::Failed to send SSM command to instance $INSTANCE_ID. XDR installation skipped."
+                        echo "::notice::XDR Agent installation failed on instance $INSTANCE_ID: SSM command error"
+                        continue
+                      }
+                    
                     # Get the command ID directly from output file
-                    SSM_COMMAND_ID=$(cat ssm_command_id.txt)
-                    echo "Extracted SSM Command ID: $SSM_COMMAND_ID"
+                    SSM_COMMAND_ID=$(cat "ssm_command_id_${INSTANCE_ID}.txt")
+                    echo "Instance $INSTANCE_ID - SSM Command ID: $SSM_COMMAND_ID"
                     
                     # If the command ID is empty or invalid, the installation will be skipped
                     if [ -z "$SSM_COMMAND_ID" ] || [ ${#SSM_COMMAND_ID} -lt 36 ]; then
-                      echo "::warning::Failed to get valid SSM Command ID. XDR installation status unknown."
-                      echo "::notice::XDR Agent installation failed: Could not get valid command ID"
-                      XDR_INSTALL_SUCCESS=false
+                      echo "::warning::Failed to get valid SSM Command ID for instance $INSTANCE_ID. XDR installation status unknown."
+                      echo "::notice::XDR Agent installation failed on instance $INSTANCE_ID: Could not get valid command ID"
                     else
                       # Wait for the command to complete
-                      echo "Waiting for the XDR installation to complete..."
+                      echo "Waiting for the XDR installation to complete on instance $INSTANCE_ID..."
                       
                       # Initialize variables
                       SSM_STATUS="Pending"
@@ -646,25 +656,24 @@ jobs:
                           --query "Commands[0].Status" \
                           --output text)
                         
-                        echo "Attempt $COUNT/$MAX_RETRIES: Command status is $SSM_STATUS"
+                        echo "Instance $INSTANCE_ID - Attempt $COUNT/$MAX_RETRIES: Command status is $SSM_STATUS"
                         
                         if [ "$SSM_STATUS" == "Success" ]; then
-                          echo "✅ XDR installation completed successfully."
+                          echo "✅ XDR installation on instance $INSTANCE_ID completed successfully."
                           break
                         elif [ "$SSM_STATUS" == "Failed" ]; then
-                          echo "⚠️ XDR installation encountered an issue. See logs for details."
-                          echo "::warning::XDR installation failed on the EC2 instance."
-                          echo "::notice::XDR Agent installation failed: Installation script error"
-                          XDR_INSTALL_SUCCESS=false
+                          echo "⚠️ XDR installation on instance $INSTANCE_ID encountered an issue. See logs for details."
+                          echo "::warning::XDR installation failed on instance $INSTANCE_ID."
+                          echo "::notice::XDR Agent installation failed on instance $INSTANCE_ID: Installation script error"
                           # Get the command output to understand the failure
                           aws ssm get-command-invocation \
                             --command-id "$SSM_COMMAND_ID" \
-                            --instance-id ${{ env.APP_INSTANCE_ID }} \
+                            --instance-id "$INSTANCE_ID" \
                             --query "StandardOutputContent" \
                             --output text
                           aws ssm get-command-invocation \
                             --command-id "$SSM_COMMAND_ID" \
-                            --instance-id ${{ env.APP_INSTANCE_ID }} \
+                            --instance-id "$INSTANCE_ID" \
                             --query "StandardErrorContent" \
                             --output text
                           break
@@ -676,13 +685,12 @@ jobs:
                       done
                       
                       if [ "$COUNT" -ge "$MAX_RETRIES" ]; then
-                        echo "⚠️ Timed out waiting for XDR installation to complete. Current status: $SSM_STATUS"
-                        echo "::warning::Timed out waiting for XDR installation to complete."
-                        echo "::notice::XDR Agent installation status: Timeout - final status unknown"
-                        XDR_INSTALL_SUCCESS=false
+                        echo "⚠️ Timed out waiting for XDR installation on instance $INSTANCE_ID to complete. Current status: $SSM_STATUS"
+                        echo "::warning::Timed out waiting for XDR installation on instance $INSTANCE_ID to complete."
+                        echo "::notice::XDR Agent installation status on instance $INSTANCE_ID: Timeout - final status unknown"
                       fi
                     fi
-                  fi
+                  done
                 fi
               fi
             fi
