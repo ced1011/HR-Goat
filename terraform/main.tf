@@ -336,15 +336,15 @@ resource "aws_instance" "app_instance" {
               
               # Log all commands for debugging
               exec > >(tee /var/log/user-data.log) 2>&1
-              echo "Starting user data script execution at $$(date)..."
+              echo "Starting user data script execution at $(date)..."
               
               # Create a test file to verify script execution
-              echo "Script executed at $$(date)" > /tmp/script-executed.txt
+              echo "Script executed at $(date)" > /tmp/script-executed.txt
               
               # Create application directory with explicit permissions
               mkdir -p /opt/hrApp
               chmod -R 777 /opt/hrApp
-              echo "Created hrApp directory at $$(date)" > /opt/hrApp/created.txt
+              echo "Created hrApp directory at $(date)" > /opt/hrApp/created.txt
               
               # Update system packages
               echo "Updating system packages..."
@@ -398,120 +398,9 @@ resource "aws_instance" "app_instance" {
               echo "Installing development tools..."
               yum groupinstall -y "Development Tools"
               
-              # ===== XDR INSTALLATION SCRIPT =====
-              echo "Setting up XDR installation script..."
-              cat > /tmp/xdr_install_script.sh << 'XDRSCRIPT'
-#!/bin/bash
 
-# Log function for better debugging
-log() {
-  echo "$$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a /var/log/xdr_install.log
-}
-
-log "Starting Cortex XDR installation check"
-
-# Check if xdr_install directory exists
-REPO_ROOT="$$(pwd)"
-XDR_DIR="$${REPO_ROOT}/xdr_install"
-
-if [ ! -d "$${XDR_DIR}" ]; then
-  log "xdr_install directory not found at $${XDR_DIR}"
-  exit 0
-fi
-
-log "Found xdr_install directory at $${XDR_DIR}"
-
-# Change to the xdr_install directory
-cd "$${XDR_DIR}" || exit 1
-
-# Check for tar.gz files
-TAR_FILES=($$(find . -maxdepth 1 -name "*.tar.gz"))
-
-if [ $${#TAR_FILES[@]} -eq 0 ]; then
-  log "No tar.gz files found in $${XDR_DIR}"
-  exit 0
-fi
-
-log "Found $${#TAR_FILES[@]} tar.gz files in $${XDR_DIR}"
-
-# Process the first tar.gz file found
-TAR_FILE="$${TAR_FILES[0]}"
-TAR_FILENAME=$$(basename "$${TAR_FILE}")
-
-log "Processing file: $${TAR_FILENAME}"
-
-# Unpack the installation archive
-log "Unpacking installation archive..."
-tar xf "$${TAR_FILENAME}"
-
-# Check if unpacking was successful
-if [ $? -ne 0 ]; then
-  log "Failed to unpack $${TAR_FILENAME}"
-  exit 1
-fi
-
-log "Successfully unpacked $${TAR_FILENAME}"
-
-# Create /etc/panw directory if it doesn't exist
-log "Creating /etc/panw directory..."
-sudo mkdir -p /etc/panw
-
-# Look for cortex.conf file
-CONF_FILE=$$(find . -maxdepth 2 -name "cortex.conf")
-
-if [ -z "$${CONF_FILE}" ]; then
-  log "cortex.conf file not found"
-  exit 1
-fi
-
-log "Found configuration file: $${CONF_FILE}"
-
-# Copy the configuration file
-log "Copying configuration file to /etc/panw/"
-sudo cp "$${CONF_FILE}" /etc/panw/
-
-# Look for shell installer script
-SHELL_INSTALLERS=($$(find . -maxdepth 2 -type f -name "*.sh"))
-
-if [ $${#SHELL_INSTALLERS[@]} -eq 0 ]; then
-  log "No shell installer script found"
-  exit 1
-fi
-
-# Choose the first shell script found
-INSTALLER="$${SHELL_INSTALLERS[0]}"
-log "Found installer script: $${INSTALLER}"
-
-# Make the installer executable
-log "Making installer executable..."
-chmod +x "$${INSTALLER}"
-
-# Execute the installer
-log "Executing installer script..."
-sudo "./$${INSTALLER}"
-
-# Check if installation was successful
-if [ $? -eq 0 ]; then
-  log "Cortex XDR installation completed successfully"
-else
-  log "Cortex XDR installation failed with error code $?"
-  exit 1
-fi
-
-log "Cortex XDR installation process completed"
-exit 0
-XDRSCRIPT
-
-              # Make the script executable
-              chmod +x /tmp/xdr_install_script.sh
-              
-              # Execute the XDR installation script
-              echo "Executing XDR installation script..."
-              cd /home/ec2-user
-              /tmp/xdr_install_script.sh
-              
               # Create a file to indicate script completion
-              echo "User data script execution completed successfully at $$(date)!" > /tmp/user-data-complete.txt
+              echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
             EOF
 
 
@@ -539,27 +428,17 @@ resource "aws_instance" "jenkins_instance" {
   user_data = <<-EOF
               #!/bin/bash
               # Update system
-              
-              # Log all commands for debugging
-              exec > >(tee /var/log/user-data.log) 2>&1
-              echo "Starting user data script execution at $$(date)..."
-              
-              # Update system packages
-              echo "Updating system packages..."
               yum update -y
               
               # Install SSM agent
-              echo "Installing SSM agent..."
               yum install -y amazon-ssm-agent
               systemctl enable amazon-ssm-agent
               systemctl start amazon-ssm-agent
               
               # Install Java
-              echo "Installing Java..."
               yum install -y java-11-amazon-corretto
               
               # Install Jenkins
-              echo "Installing Jenkins..."
               wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
               rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
               yum install -y jenkins-2.270
@@ -568,121 +447,6 @@ resource "aws_instance" "jenkins_instance" {
               
               # Add jenkins user to docker group
               usermod -aG docker jenkins
-              
-              # ===== XDR INSTALLATION SCRIPT =====
-              echo "Setting up XDR installation script..."
-              cat > /tmp/xdr_install_script.sh << 'XDRSCRIPT'
-#!/bin/bash
-
-# Log function for better debugging
-log() {
-  echo "$$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a /var/log/xdr_install.log
-}
-
-log "Starting Cortex XDR installation check"
-
-# Check if xdr_install directory exists
-REPO_ROOT="$$(pwd)"
-XDR_DIR="$${REPO_ROOT}/xdr_install"
-
-if [ ! -d "$${XDR_DIR}" ]; then
-  log "xdr_install directory not found at $${XDR_DIR}"
-  exit 0
-fi
-
-log "Found xdr_install directory at $${XDR_DIR}"
-
-# Change to the xdr_install directory
-cd "$${XDR_DIR}" || exit 1
-
-# Check for tar.gz files
-TAR_FILES=($$(find . -maxdepth 1 -name "*.tar.gz"))
-
-if [ $${#TAR_FILES[@]} -eq 0 ]; then
-  log "No tar.gz files found in $${XDR_DIR}"
-  exit 0
-fi
-
-log "Found $${#TAR_FILES[@]} tar.gz files in $${XDR_DIR}"
-
-# Process the first tar.gz file found
-TAR_FILE="$${TAR_FILES[0]}"
-TAR_FILENAME=$$(basename "$${TAR_FILE}")
-
-log "Processing file: $${TAR_FILENAME}"
-
-# Unpack the installation archive
-log "Unpacking installation archive..."
-tar xf "$${TAR_FILENAME}"
-
-# Check if unpacking was successful
-if [ $? -ne 0 ]; then
-  log "Failed to unpack $${TAR_FILENAME}"
-  exit 1
-fi
-
-log "Successfully unpacked $${TAR_FILENAME}"
-
-# Create /etc/panw directory if it doesn't exist
-log "Creating /etc/panw directory..."
-sudo mkdir -p /etc/panw
-
-# Look for cortex.conf file
-CONF_FILE=$$(find . -maxdepth 2 -name "cortex.conf")
-
-if [ -z "$${CONF_FILE}" ]; then
-  log "cortex.conf file not found"
-  exit 1
-fi
-
-log "Found configuration file: $${CONF_FILE}"
-
-# Copy the configuration file
-log "Copying configuration file to /etc/panw/"
-sudo cp "$${CONF_FILE}" /etc/panw/
-
-# Look for shell installer script
-SHELL_INSTALLERS=($$(find . -maxdepth 2 -type f -name "*.sh"))
-
-if [ $${#SHELL_INSTALLERS[@]} -eq 0 ]; then
-  log "No shell installer script found"
-  exit 1
-fi
-
-# Choose the first shell script found
-INSTALLER="$${SHELL_INSTALLERS[0]}"
-log "Found installer script: $${INSTALLER}"
-
-# Make the installer executable
-log "Making installer executable..."
-chmod +x "$${INSTALLER}"
-
-# Execute the installer
-log "Executing installer script..."
-sudo "./$${INSTALLER}"
-
-# Check if installation was successful
-if [ $? -eq 0 ]; then
-  log "Cortex XDR installation completed successfully"
-else
-  log "Cortex XDR installation failed with error code $?"
-  exit 1
-fi
-
-log "Cortex XDR installation process completed"
-exit 0
-XDRSCRIPT
-
-              # Make the script executable
-              chmod +x /tmp/xdr_install_script.sh
-              
-              # Execute the XDR installation script
-              echo "Executing XDR installation script..."
-              cd /home/ec2-user
-              /tmp/xdr_install_script.sh
-              
-              # Create a file to indicate script completion
-              echo "User data script execution completed successfully at $$(date)!" > /tmp/user-data-complete.txt
               EOF
 
   root_block_device {
