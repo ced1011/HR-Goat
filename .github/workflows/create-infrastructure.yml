@@ -395,6 +395,8 @@ jobs:
                 echo '# Log file for installation' >> xdr_install.sh
                 echo 'LOG_FILE="/var/log/xdr_install.log"' >> xdr_install.sh
                 echo '' >> xdr_install.sh
+                echo 'yum install selinux-policy-devel.noarch -y' >> xdr_install.sh
+                echo '' >> xdr_install.sh
                 echo '# Function for logging' >> xdr_install.sh
                 echo 'log() {' >> xdr_install.sh
                 echo '  echo "[$(date '"'"'+%Y-%m-%d %H:%M:%S'"'"')] $1" | tee -a "$LOG_FILE"' >> xdr_install.sh
