@@ -1904,36 +1904,32 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
   try {
     console.log('Received bulk upload request:', JSON.stringify(req.body).substring(0, 200) + '...');
     
-    if (!req.body.data) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No data provided for upload' 
-      });
+    let employeesData = req.body;
+    
+    // Support both direct body and nested data format for backward compatibility
+    if (req.body.data) {
+      console.log('Found data field in request, using that');
+      employeesData = req.body.data;
     }
     
-    let employeesData;
+    // Parse the JSON data if it's a string
+    if (typeof employeesData === 'string') {
+      console.log('Parsing JSON string data');
+      try {
+        employeesData = JSON.parse(employeesData);
+      } catch (parseError) {
+        console.error('Error parsing employee data:', parseError);
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid JSON data format' 
+        });
+      }
+    }
     
-    try {
-      // Parse the JSON data if it's a string
-      if (typeof req.body.data === 'string') {
-        console.log('Parsing JSON string data');
-        employeesData = JSON.parse(req.body.data);
-      } else {
-        console.log('Using provided JSON object data');
-        employeesData = req.body.data;
-      }
-      
-      // Ensure we have an array of employees
-      if (!Array.isArray(employeesData)) {
-        console.log('Converting single employee to array');
-        employeesData = [employeesData];
-      }
-    } catch (parseError) {
-      console.error('Error parsing employee data:', parseError);
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Invalid JSON data format' 
-      });
+    // Ensure we have an array of employees
+    if (!Array.isArray(employeesData)) {
+      console.log('Converting single employee to array');
+      employeesData = [employeesData];
     }
     
     console.log(`Processing ${employeesData.length} employees for bulk upload`);

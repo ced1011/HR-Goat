@@ -4,6 +4,7 @@ const path = require('path');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const http = require('http');
 const app = express();
 const PORT = process.env.FRONTEND_PORT || 80;
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5002';
@@ -385,47 +386,43 @@ app.post('/api/system/fetch-resource', (req, res) => {
 
 // Special handler for employees bulk-upload endpoint
 app.post('/api/employees/bulk-upload', (req, res) => {
-  console.log('Handling employees bulk-upload request directly');
-  let bodyData = '';
-  req.on('data', chunk => {
-    bodyData += chunk.toString();
-  });
-  req.on('end', () => {
-    let requestBody = {};
-    try {
-      requestBody = JSON.parse(bodyData);
-    } catch (e) {
-      console.error('Error parsing request body:', e);
+  console.log('Forwarding bulk upload request directly to backend without processing');
+  
+  // Create a new request to the backend with the original body and headers
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': req.headers['content-type'] || 'application/json',
+      'user-id': req.headers['user-id'] || '',
+      'Authorization': req.headers['authorization'] || '',
     }
-    console.log('Uploading employees with payload:', requestBody);
-    fetch(BACKEND_URL + '/api/employees/bulk-upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'user-id': req.headers['user-id'] || '',
-        'Authorization': req.headers['authorization'] || '',
-      },
-      body: bodyData
-    })
-    .then(response => {
-      if (response.ok) {
-        return response.json();
-      } else if (response.status === 404) {
-        // Return a mock response if the endpoint doesn't exist
-        console.log('Employees bulk-upload endpoint not found, returning mock data');
-        return { success: true, message: 'Employees uploaded successfully (mock)', uploadedCount: 0 };
-      } else {
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-      }
-    })
-    .then(data => {
-      res.json(data);
-    })
-    .catch(error => {
-      console.error('Error uploading employees:', error);
-      res.json({ success: true, message: 'Mock upload complete', uploadedCount: 0 });
+  };
+  
+  // Pipe the original request directly to the backend
+  const backendReq = http.request(BACKEND_URL + '/api/employees/bulk-upload', options, backendRes => {
+    // Copy all headers from the backend response
+    Object.keys(backendRes.headers).forEach(key => {
+      res.setHeader(key, backendRes.headers[key]);
+    });
+    
+    // Set the status code
+    res.statusCode = backendRes.statusCode;
+    
+    // Pipe the backend response directly to the client response
+    backendRes.pipe(res);
+  });
+  
+  // Handle errors
+  backendReq.on('error', (error) => {
+    console.error('Error forwarding request to backend:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error communicating with backend service' 
     });
   });
+  
+  // Pipe the original request body to the backend request
+  req.pipe(backendReq);
 });
 
 // Special handler for reset-calendar-events endpoint
