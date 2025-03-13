@@ -47,6 +47,7 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
     bio: employee.bio
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string>(employee.avatar || '');
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -62,6 +63,42 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
     // Allow only numbers and empty string
     if (value === '' || /^\d+$/.test(value)) {
       setFormData(prev => ({ ...prev, salary: value === '' ? 0 : parseInt(value, 10) }));
+    }
+  };
+  
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('avatar', file);
+    formData.append('userId', employee.id.toString());
+    
+    try {
+      setIsSubmitting(true);
+      const response = await fetch('/api/profile/upload-avatar', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setAvatarUrl(result.file.path);
+        setFormData(prev => ({ ...prev, avatar: result.file.path }));
+        toast.success('Profile picture uploaded successfully');
+      } else {
+        toast.error('Failed to upload profile picture', {
+          description: result.message || 'Unknown error',
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload profile picture', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -202,13 +239,28 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="avatar">Avatar URL</Label>
-              <Input
-                id="avatar"
-                name="avatar"
-                value={formData.avatar}
-                onChange={handleChange}
-              />
+              <Label htmlFor="avatar">Profile Picture</Label>
+              <div className="flex flex-col space-y-2">
+                {avatarUrl && (
+                  <div className="mb-2">
+                    <img
+                      src={avatarUrl}
+                      alt="Profile Preview"
+                      className="w-32 h-32 object-cover rounded-full border"
+                    />
+                  </div>
+                )}
+                <Input
+                  id="avatarFile"
+                  name="avatarFile"
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:bg-primary/90 file:text-primary-foreground hover:file:bg-primary"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Upload a profile picture (VULNERABLE: Any file type is accepted, including .js files)
+                </p>
+              </div>
             </div>
           </div>
           

