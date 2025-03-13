@@ -1,8 +1,7 @@
 import { BankAccount, ApiResponse } from '../api-models';
 
 // Use the proxy configuration from vite.config.ts
-import { apiService } from '../api';
-const baseUrl = apiService.getBaseUrl();
+const baseUrl = '/api';
 
 export const bankAccountService = {
   // Get all bank accounts for an employee

@@ -29,6 +29,7 @@ export const safeToast = {
     }, 0)
   }
 }
+
 // Default avatar helper function
 export function getDefaultAvatar(avatar?: string, name?: string): string {
   // If avatar is provided and not empty, return it
@@ -64,4 +65,3 @@ export function getDefaultAvatar(avatar?: string, name?: string): string {
   // Fallback to static default avatar
   return staticDefaultAvatar;
 }
-

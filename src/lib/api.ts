@@ -216,19 +216,12 @@ class ApiService {
   private baseUrl: string;
   
   constructor() {
-    // Use environment-aware base URL
-    this.baseUrl = import.meta.env.PROD 
-      ? '/api'  // In production, use relative path that will be handled by the server
-      : 'http://localhost:5001/api';  // In development, connect to the dev server
+    // Use the proxied API endpoint
+    this.baseUrl = '/api';
     
-    console.log('API Service initialized with baseUrl:', this.baseUrl);
+    console.log('API Service initialized');
   }
   
-  // Expose the base URL for other services
-  getBaseUrl(): string {
-    return this.baseUrl;
-  }
-
   // Generic request method
   private async request<T>(
     endpoint: string, 
