@@ -250,9 +250,9 @@ jobs:
 
     - name: Verify EC2 Instance State
       run: |
-        MAX_RETRIES=12  # Maximum attempts
+        MAX_RETRIES=20  # Maximum attempts (increased from 12)
         INSTANCE_ID="${{ env.APP_INSTANCE_ID }}"  # Instance ID
-        REGION="us-east-1"  # AWS region
+        REGION="${{ env.AWS_REGION }}"  # AWS region
         COUNT=0
         
         if [ -z "$INSTANCE_ID" ]; then
@@ -267,17 +267,43 @@ jobs:
 
             if [ "$INSTANCE_STATE" == "running" ]; then
                 echo "✅ EC2 instance $INSTANCE_ID is now in a running state."
-                exit 0
+                
+                # Check if SSM agent is ready by attempting a simple SSM command
+                echo "Checking if SSM agent is ready..."
+                if aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text | grep -q "Online"; then
+                  echo "✅ SSM agent is online and ready."
+                else
+                  echo "⚠️ SSM agent is not yet reporting as online. Waiting for it to initialize..."
+                  # Wait a bit longer for SSM agent to initialize
+                  sleep 30
+                fi
+                break
             fi
 
             COUNT=$((COUNT+1))
             echo "⏳ Attempt $COUNT/$MAX_RETRIES: EC2 instance $INSTANCE_ID is in '$INSTANCE_STATE' state. Waiting..."
-            sleep 5
+            sleep 15  # Increased wait time between checks
         done
 
-        # If we reach here and state is not running, give a proper error
+        # One final check after all retries
+        INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids "$INSTANCE_ID" --region "$REGION" --query "Reservations[0].Instances[0].State.Name" --output text)
         if [ "$INSTANCE_STATE" != "running" ]; then
-          echo "::warning::EC2 instance $INSTANCE_ID failed to reach running state after $MAX_RETRIES attempts. Current state: $INSTANCE_STATE"
+          echo "::error::EC2 instance $INSTANCE_ID failed to reach running state after $MAX_RETRIES attempts. Current state: $INSTANCE_STATE"
+          exit 1
+        fi
+        
+        # Verify the instance has SSM agent properly configured
+        echo "Verifying SSM agent on instance $INSTANCE_ID..."
+        SSM_STATUS=$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query "InstanceInformationList[0].PingStatus" --output text || echo "Unknown")
+        
+        if [ "$SSM_STATUS" != "Online" ]; then
+          echo "::warning::SSM agent on instance $INSTANCE_ID is not reporting as online (status: $SSM_STATUS). Deployment may fail."
+          # Don't exit with error, as sometimes SSM can still work even if not reporting online yet
+          # Instead, add a delay to give it more time
+          echo "Waiting additional time for SSM agent to initialize..."
+          sleep 60
+        else
+          echo "✅ SSM agent is online and ready to receive commands."
         fi
 
     - name: Deploy to EC2 via SSM
@@ -299,10 +325,6 @@ jobs:
           DB_HOST=$(echo "${{ env.RDS_HOST }}" | cut -d: -f1)
         fi
         
-        # Wait for EC2 instance to be ready - disabled for now
-        # echo "Waiting for EC2 instance to be ready..."
-        # aws ec2 wait instance-status-ok --instance-ids ${{ env.APP_INSTANCE_ID }}
-        
         # Print all environment variables
         echo "Environment variables:"
         echo "APP_INSTANCE_ID: ${{ env.APP_INSTANCE_ID }}"
@@ -316,12 +338,95 @@ jobs:
         
         echo "Using commands: $COMMANDS_JSON"
         
-        # Deploy using SSM with properly formatted JSON parameter
-        aws ssm send-command \
-          --instance-ids ${{ env.APP_INSTANCE_ID }} \
-          --document-name "AWS-RunShellScript" \
-          --parameters commands="$COMMANDS_JSON" \
-          --output text
+        # Deploy using SSM with properly formatted JSON parameter and retries
+        MAX_ATTEMPTS=3
+        CURRENT_ATTEMPT=1
+        
+        while [ $CURRENT_ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo "Attempt $CURRENT_ATTEMPT to send SSM command to instance ${{ env.APP_INSTANCE_ID }}"
+          
+          if SSM_OUTPUT=$(aws ssm send-command \
+            --instance-ids ${{ env.APP_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="$COMMANDS_JSON" \
+            --query "Command.CommandId" \
+            --output text 2>&1); then
+              
+            echo "SSM command sent successfully! Command ID: $SSM_OUTPUT"
+            COMMAND_ID=$SSM_OUTPUT
+            
+            # Wait for command to complete
+            echo "Waiting for SSM command to complete..."
+            # Start with shorter waits, then longer ones
+            for WAIT_TIME in 10 20 30 60; do
+              # Check command status
+              STATUS=$(aws ssm list-commands \
+                --command-id $COMMAND_ID \
+                --query "Commands[0].Status" \
+                --output text)
+              
+              echo "Command status: $STATUS"
+              
+              if [ "$STATUS" = "Success" ]; then
+                echo "✅ SSM command executed successfully!"
+                
+                # Get command output for logging
+                aws ssm get-command-invocation \
+                  --command-id $COMMAND_ID \
+                  --instance-id ${{ env.APP_INSTANCE_ID }} \
+                  --query "StandardOutputContent" \
+                  --output text
+                
+                # Command succeeded, exit the loop
+                break 2
+              elif [ "$STATUS" = "Failed" ]; then
+                echo "❌ SSM command failed, getting error logs:"
+                
+                # Get error output
+                aws ssm get-command-invocation \
+                  --command-id $COMMAND_ID \
+                  --instance-id ${{ env.APP_INSTANCE_ID }} \
+                  --query "StandardErrorContent" \
+                  --output text
+                
+                if [ $CURRENT_ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "Will retry in 60 seconds..."
+                  sleep 60
+                  break
+                else
+                  echo "::error::SSM command failed after $MAX_ATTEMPTS attempts"
+                  exit 1
+                fi
+              elif [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+                echo "⚠️ SSM command $STATUS"
+                if [ $CURRENT_ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "Will retry in 60 seconds..."
+                  sleep 60
+                  break
+                else
+                  echo "::error::SSM command $STATUS after $MAX_ATTEMPTS attempts"
+                  exit 1
+                fi
+              else
+                echo "Command still in progress, waiting $WAIT_TIME seconds..."
+                sleep $WAIT_TIME
+              fi
+            done
+          else
+            # Command send failed
+            echo "Failed to send SSM command: $SSM_OUTPUT"
+            
+            if [ $CURRENT_ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Will retry in 60 seconds..."
+              sleep 60
+            else
+              echo "::error::Failed to send SSM command after $MAX_ATTEMPTS attempts"
+              exit 1
+            fi
+          fi
+          
+          CURRENT_ATTEMPT=$((CURRENT_ATTEMPT + 1))
+        done
 
     - name: Deploy Cortex XDR Agent
       continue-on-error: true
