@@ -507,18 +507,24 @@ jobs:
                     --instance-ids ${{ env.APP_INSTANCE_ID }} \
                     --document-name "AWS-RunShellScript" \
                     --parameters commands="$XDR_COMMANDS" \
-                    --output text > ssm_command_output.txt || {
+                    --query "Command.CommandId" \
+                    --output text > ssm_command_id.txt || {
                       echo "::warning::Failed to send SSM command to EC2 instance. XDR installation skipped."
                       echo "::notice::XDR Agent installation failed: SSM command error"
                       XDR_INSTALL_SUCCESS=false
                     }
                   
                   if [ "$XDR_INSTALL_SUCCESS" = true ]; then
-                    # Get the command ID from the output
-                    SSM_COMMAND_ID=$(head -n1 ssm_command_output.txt | awk '{print $3}')
-                    echo "SSM Command ID: $SSM_COMMAND_ID"
+                    # Get the command ID directly from output file
+                    SSM_COMMAND_ID=$(cat ssm_command_id.txt)
+                    echo "Extracted SSM Command ID: $SSM_COMMAND_ID"
                     
-                    if [ -n "$SSM_COMMAND_ID" ]; then
+                    # If the command ID is empty or invalid, the installation will be skipped
+                    if [ -z "$SSM_COMMAND_ID" ] || [ ${#SSM_COMMAND_ID} -lt 36 ]; then
+                      echo "::warning::Failed to get valid SSM Command ID. XDR installation status unknown."
+                      echo "::notice::XDR Agent installation failed: Could not get valid command ID"
+                      XDR_INSTALL_SUCCESS=false
+                    else
                       # Wait for the command to complete
                       echo "Waiting for the XDR installation to complete..."
                       
@@ -570,11 +576,6 @@ jobs:
                         echo "::notice::XDR Agent installation status: Timeout - final status unknown"
                         XDR_INSTALL_SUCCESS=false
                       fi
-                    else
-                      echo "⚠️ Failed to get SSM Command ID. XDR installation status unknown."
-                      echo "::warning::Failed to get SSM Command ID. XDR installation status unknown."
-                      echo "::notice::XDR Agent installation failed: Could not get command ID"
-                      XDR_INSTALL_SUCCESS=false
                     fi
                   fi
                 fi

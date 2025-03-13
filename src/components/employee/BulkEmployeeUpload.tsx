@@ -199,9 +199,98 @@ const BulkEmployeeUpload = () => {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Rest of the component content */}
-    </div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Bulk Employee Upload</CardTitle>
+        <CardDescription>
+          Upload multiple employees at once using JSON or CSV format
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangleIcon className="h-4 w-4" />
+          <AlertTitle>Security Warning</AlertTitle>
+          <AlertDescription>
+            This feature uses insecure deserialization for educational purposes. 
+            In a real application, this would be a serious security vulnerability.
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label htmlFor="file-upload" className="text-sm font-medium">
+              Upload JSON or CSV File
+            </label>
+            <div className="flex space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={downloadSampleJson}
+                className="flex items-center"
+              >
+                <DownloadIcon className="h-4 w-4 mr-2" />
+                Sample JSON
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={downloadSampleCsv}
+                className="flex items-center"
+              >
+                <DownloadIcon className="h-4 w-4 mr-2" />
+                Sample CSV
+              </Button>
+            </div>
+          </div>
+          <Input
+            id="file-upload"
+            type="file"
+            accept=".json,.csv"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="json-data" className="text-sm font-medium">
+            Or paste JSON data directly
+          </label>
+          <Textarea
+            id="json-data"
+            placeholder='[{"name": "John Doe", "position": "Software Engineer", ...}]'
+            value={jsonData}
+            onChange={handleJsonChange}
+            className="font-mono text-xs h-64"
+          />
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <div className="flex items-center text-sm text-muted-foreground">
+          <InfoIcon className="h-4 w-4 mr-2" />
+          {file ? `Selected file: ${file.name}` : 'No file selected'}
+        </div>
+        <Button 
+          onClick={handleUpload} 
+          disabled={isUploading || !jsonData.trim()}
+          className="flex items-center"
+        >
+          <UploadIcon className="h-4 w-4 mr-2" />
+          {isUploading ? 'Uploading...' : 'Upload Employees'}
+        </Button>
+      </CardFooter>
+      
+      {uploadResult && (
+        <CardContent>
+          <div className="mt-4">
+            <h3 className="text-sm font-medium mb-2">Upload Result:</h3>
+            <Textarea
+              className="font-mono text-xs h-32"
+              value={uploadResult}
+              readOnly
+            />
+          </div>
+        </CardContent>
+      )}
+    </Card>
   );
 };
 
