@@ -2,10 +2,8 @@
 FROM node:16-alpine
 
 # Install socat for port redirection
-RUN apk update && apk add --no-cache \
-    bash \
-    curl \
-    wget 
+RUN apk add --no-cache bash curl wget socat
+
 
 # Create app directory
 WORKDIR /app
