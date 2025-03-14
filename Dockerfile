@@ -17,7 +17,6 @@ COPY server/ ./server/
 # Copy src directory with SQL files
 COPY src/ ./src/
 
-COPY examples/ ./examples/
 
 COPY public/ ./public/
 
