@@ -12,6 +12,7 @@
 terraform/
 xdr_install/
 node_modules/
+examples/
 
 .env.example
 Jenkinsfile
