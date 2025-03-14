@@ -5,19 +5,7 @@ FROM node:16-alpine
 RUN apk update && apk add --no-cache \
     bash \
     curl \
-    wget \
-    netcat-openbsd \
-    iputils-ping \
-    git \
-    vim \
-    nano \
-    socat \
-    python3 \
-    python3-pip \
-    python3-dev \
-    build-base \
-    libffi-dev \
-    openssl-dev 
+    wget 
 
 # Create app directory
 WORKDIR /app
