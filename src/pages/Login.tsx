@@ -139,16 +139,15 @@ const Login = () => {
             </CardContent>
             <CardFooter className="flex flex-col space-y-4">
               <div className="text-sm text-center text-gray-500">
-                <span>Demo credentials:</span>
                 <ul className="mt-1">
-                  <li>Username: admin, Password: admin123</li>
+                  <li>Don't have an account? Contact your administrator</li>
                 </ul>
               </div>
             </CardFooter>
           </Card>
           
           <div className="text-center text-sm text-gray-600">
-            <p>Don't have an account? Contact your administrator</p>
+            <p></p>
           </div>
         </div>
       </div>

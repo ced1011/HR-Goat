@@ -331,90 +331,93 @@ resource "aws_iam_role_policy_attachment" "s3_policy" {
 
 # EC2 instance for the application
 resource "aws_instance" "app_instance" {
-  ami                    = var.ec2_ami_id
-  instance_type          = var.ec2_instance_type
+  ami           = var.ec2_ami_id
+  instance_type = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.app_sg.id]
-  subnet_id              = aws_subnet.public_a.id
-  iam_instance_profile   = aws_iam_instance_profile.ssm_instance_profile.name
-  
+  subnet_id     = aws_subnet.public_a.id
+  iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "optional" # Enforce IMDSv2
+  }
+
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-app-instance"
   })
 
   user_data = <<-EOF
-              #!/bin/bash
-              # Update system
-              set -ex
-              
-              # Log all commands for debugging
-              exec > >(tee /var/log/user-data.log) 2>&1
-              echo "Starting user data script execution at $(date)..."
-              
-              # Create a test file to verify script execution
-              echo "Script executed at $(date)" > /tmp/script-executed.txt
-              
-              # Create application directory with explicit permissions
-              mkdir -p /opt/hrApp
-              chmod -R 777 /opt/hrApp
-              echo "Created hrApp directory at $(date)" > /opt/hrApp/created.txt
-              
-              # Update system packages
-              echo "Updating system packages..."
-              yum update -y
-              
-              # Install AWS CLI first for SSM registration
-              echo "Installing AWS CLI..."
-              yum install -y aws-cli
-              sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-              # Configure AWS CLI with the instance region
-              echo "Configuring AWS CLI default region..."
-              mkdir -p /root/.aws
-              cat > /root/.aws/config <<EOL
-              [default]
-              region = us-east-1
-              EOL
-              
-              # Install and start SSM Agent with special care
-              echo "Installing and configuring SSM Agent..."
-              yum install -y amazon-ssm-agent
-              
-              # Install Docker with robust error handling
-              echo "Installing Docker..."
-              amazon-linux-extras install -y docker || {
-                echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-                yum install -y docker
-              }
-              
-              # Make sure Docker service is enabled and started with retries
-              echo "Enabling and starting Docker service..."
-              systemctl enable docker
-              
-              # Try to start Docker with multiple attempts
-              for i in {1..5}; do
-                echo "Attempt $i to start Docker service..."
-                systemctl start docker && break || {
-                  echo "Start attempt $i failed, waiting and trying again..."
-                  sleep 10
-                }
-              done
-              
-              # Verify Docker is installed and running
-              echo "Verifying Docker installation..."
-              docker --version || echo "Docker installation failed!"
-              systemctl status docker || echo "Docker service is not running!"
-              
-              # Add ec2-user to docker group
-              usermod -aG docker ec2-user
-              
-              # Install additional development tools
-              echo "Installing development tools..."
-              yum groupinstall -y "Development Tools"
-              
+    #!/bin/bash
+    # Update system
+    set -ex
 
-              # Create a file to indicate script completion
-              echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
-            EOF
+    # Log all commands for debugging
+    exec > >(tee /var/log/user-data.log) 2>&1
+    echo "Starting user data script execution at $(date)..."
 
+    # Create a test file to verify script execution
+    echo "Script executed at $(date)" > /tmp/script-executed.txt
+
+    # Create application directory with explicit permissions
+    mkdir -p /opt/hrApp
+    chmod -R 777 /opt/hrApp
+    echo "Created hrApp directory at $(date)" > /opt/hrApp/created.txt
+
+    # Update system packages
+    echo "Updating system packages..."
+    yum update -y
+
+    # Install AWS CLI first for SSM registration
+    echo "Installing AWS CLI..."
+    yum install -y aws-cli
+    sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    # Configure AWS CLI with the instance region
+    echo "Configuring AWS CLI default region..."
+    mkdir -p /root/.aws
+    cat > /root/.aws/config <<EOL
+    [default]
+    region = us-east-1
+    EOL
+
+    # Install and start SSM Agent with special care
+    echo "Installing and configuring SSM Agent..."
+    yum install -y amazon-ssm-agent
+
+    # Install Docker with robust error handling
+    echo "Installing Docker..."
+    amazon-linux-extras install -y docker || {
+      echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
+      yum install -y docker
+    }
+
+    # Make sure Docker service is enabled and started with retries
+    echo "Enabling and starting Docker service..."
+    systemctl enable docker
+
+    # Try to start Docker with multiple attempts
+    for i in {1..5}; do
+      echo "Attempt $i to start Docker service..."
+      systemctl start docker && break || {
+        echo "Start attempt $i failed, waiting and trying again..."
+        sleep 10
+      }
+    done
+
+    # Verify Docker is installed and running
+    echo "Verifying Docker installation..."
+    docker --version || echo "Docker installation failed!"
+    systemctl status docker || echo "Docker service is not running!"
+
+    # Add ec2-user to docker group
+    usermod -aG docker ec2-user
+
+    # Install additional development tools
+    echo "Installing development tools..."
+    yum groupinstall -y "Development Tools"
+
+    # Create a file to indicate script completion
+    echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
+  EOF
 
   root_block_device {
     volume_size = 30
@@ -432,153 +435,39 @@ resource "aws_instance" "jenkins_instance" {
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   subnet_id              = aws_subnet.public_a.id
   iam_instance_profile   = aws_iam_instance_profile.jenkins_instance_profile.name
-  
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "optional" # Enforce IMDSv2
+  }
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-jenkins-instance"
   })
 
   user_data = <<-EOF
               #!/bin/bash
-              
-              # Set up logging
-              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-              echo "Starting Jenkins installation and configuration..."
-              
               # Update system
-              echo "Updating system packages..."
               yum update -y
               
               # Install SSM agent
-              echo "Installing and configuring SSM agent..."
               yum install -y amazon-ssm-agent
               systemctl enable amazon-ssm-agent
               systemctl start amazon-ssm-agent
               
-              # Install useful utilities
-              echo "Installing utilities..."
-              yum install -y git wget unzip jq
-              
               # Install Java
-              echo "Installing Java..."
               yum install -y java-11-amazon-corretto
               
-              # Install Docker with robust error handling
-              echo "Installing Docker..."
-              amazon-linux-extras install -y docker || {
-                echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-                yum install -y docker
-              }
-              
-              # Make sure Docker service is enabled and started with retries
-              echo "Enabling and starting Docker service..."
-              systemctl enable docker
-              
-              MAX_RETRIES=5
-              for i in $(seq 1 $MAX_RETRIES); do
-                echo "Attempt $i to start Docker service..."
-                systemctl start docker && break || {
-                  if [ $i -eq $MAX_RETRIES ]; then
-                    echo "Failed to start Docker after $MAX_RETRIES attempts!"
-                  else
-                    echo "Retrying in 10 seconds..."
-                    sleep 10
-                  fi
-                }
-              done
-              
-              # Verify Docker is installed and running
-              echo "Verifying Docker installation..."
-              docker --version || echo "Docker installation failed!"
-              systemctl status docker || echo "Docker service is not running!"
-              
-              # Add ec2-user to docker group
-              usermod -aG docker ec2-user
-              
               # Install Jenkins
-              echo "Installing Jenkins..."
-              wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-              rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-              yum install -y jenkins-2.270
+              cd /tmp
+              wget https://updates.jenkins.io/download/war/2.270/jenkins.war
+              java -jar jenkins.war --httpPort=8080
               
-              # Configure Jenkins
-              echo "Configuring Jenkins..."
-              mkdir -p /var/lib/jenkins/init.groovy.d
+              # create server account
+
               
               # Add jenkins user to docker group
               usermod -aG docker jenkins
               
-              # Create initial admin user setup script
-              cat > /var/lib/jenkins/init.groovy.d/basic-security.groovy << 'GROOVY'
-              #!groovy
-              import jenkins.model.*
-              import hudson.security.*
-              import jenkins.install.InstallState
-              
-              def instance = Jenkins.getInstance()
-              
-              // Disable setup wizard
-              instance.setInstallState(InstallState.INITIAL_SETUP_COMPLETED)
-              
-              // Create admin user
-              def hudsonRealm = new HudsonPrivateSecurityRealm(false)
-              hudsonRealm.createAccount('admin', 'admin123')
-              instance.setSecurityRealm(hudsonRealm)
-              
-              def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
-              strategy.setAllowAnonymousRead(false)
-              instance.setAuthorizationStrategy(strategy)
-              
-              instance.save()
-              GROOVY
-              
-              # Set proper permissions for Jenkins files
-              chown -R jenkins:jenkins /var/lib/jenkins
-              chmod 700 /var/lib/jenkins/init.groovy.d/basic-security.groovy
-              
-              # Start Jenkins
-              echo "Starting Jenkins service..."
-              systemctl enable jenkins
-              systemctl start jenkins
-              
-              # Wait for Jenkins to start up
-              echo "Waiting for Jenkins to start..."
-              timeout 300 bash -c 'until curl -s -f http://localhost:8080 > /dev/null; do sleep 5; done'
-              
-              # Install Jenkins plugins
-              echo "Installing Jenkins plugins..."
-              JENKINS_CLI="/var/cache/jenkins/war/WEB-INF/jenkins-cli.jar"
-              
-              # Wait for jenkins-cli.jar to become available (with timeout)
-              echo "Waiting for jenkins-cli.jar to become available..."
-              COUNTER=0
-              while [ $COUNTER -lt 30 ] && [ ! -f $JENKINS_CLI ]; do
-                sleep 10
-                COUNTER=$((COUNTER+1))
-                echo "Waiting for jenkins-cli.jar... attempt $COUNTER/30"
-              done
-              
-              if [ -f $JENKINS_CLI ]; then
-                echo "Installing required plugins..."
-                JENKINS_HOST="http://localhost:8080"
-                JENKINS_CRUMB=$(curl -s "$JENKINS_HOST/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")
-                
-                java -jar $JENKINS_CLI -s $JENKINS_HOST -auth admin:admin123 install-plugin \
-                  workflow-aggregator \
-                  git \
-                  docker-workflow \
-                  amazon-ecr \
-                  aws-credentials \
-                  pipeline-aws \
-                  ssh-agent
-                
-                # Restart Jenkins after plugin installation
-                java -jar $JENKINS_CLI -s $JENKINS_HOST -auth admin:admin123 safe-restart
-              else
-                echo "Warning: jenkins-cli.jar not found, skipping plugin installation"
-              fi
-              
               # Create directories for Cortex XDR installation
-              echo "Creating directories for Cortex XDR installation..."
               mkdir -p /etc/panw
               mkdir -p /var/log
               touch /var/log/xdr_install.log
@@ -586,8 +475,6 @@ resource "aws_instance" "jenkins_instance" {
               
               # Install dependencies that might be needed for XDR
               yum install -y selinux-policy-devel.noarch
-              
-              echo "Jenkins installation and configuration completed!"
               EOF
 
   root_block_device {

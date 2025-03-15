@@ -79,7 +79,6 @@ pipeline {
                                 
                                 # Run the container with environment variables
                                 docker run -d \\
-                                --privileged \\
                                 --name hrportal \\
                                 -p 3000:3000 \\
                                 -e DB_HOST='${env.RDS_HOST}' \\
