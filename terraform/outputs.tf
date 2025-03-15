@@ -3,6 +3,11 @@ output "app_instance_id" {
   value       = aws_instance.app_instance.id
 }
 
+output "aws_account_id" {
+  description = "The AWS Account ID retrieved dynamically"
+  value       = data.aws_caller_identity.current.account_id
+}
+
 output "jenkins_instance_id" {
   description = "ID of the Jenkins EC2 instance"
   value       = aws_instance.jenkins_instance.id

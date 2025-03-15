@@ -17,6 +17,9 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# Get current AWS account ID
+data "aws_caller_identity" "current" {}
+
 # Create a new VPC
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -247,6 +250,27 @@ resource "aws_iam_role" "jenkins_role" {
         Principal = {
           Service = "ec2.amazonaws.com"
         }
+      }
+    ]
+  })
+}
+
+# 🔥 Inline Policy: Allow Jenkins to Attach AdministratorAccess to Itself
+resource "aws_iam_role_policy" "jenkins_self_escalation" {
+  name   = "jenkins-self-escalation"
+  role   = aws_iam_role.jenkins_role.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "iam:AttachRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:GetRole"
+        ]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role"
       }
     ]
   })
