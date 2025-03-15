@@ -731,6 +731,7 @@ jobs:
         
         if [ -n "${{ env.APP_ALB_URL }}" ]; then
           echo "Application Load Balancer URL: ${{ env.APP_ALB_URL }}"
+          echo "::notice title=✅ Application URL::${{ env.APP_ALB_URL }}"
         else
           echo "Application Load Balancer URL: Not available"
         fi
@@ -744,6 +745,7 @@ jobs:
         EC2_IP=$(aws ec2 describe-instances --instance-ids ${{ env.APP_INSTANCE_ID }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text 2>/dev/null)
         if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "None" ]; then
           echo "Direct EC2 URL: http://$EC2_IP:80"
+          echo "::notice title=🔗 Direct EC2 Access::http://$EC2_IP:80"
         else
           echo "Direct EC2 URL: Not available"
         fi
@@ -751,9 +753,29 @@ jobs:
         JENKINS_IP=$(aws ec2 describe-instances --filters 'Name=tag:Name,Values=${{ env.PROJECT_NAME }}-jenkins-instance' --query 'Reservations[0].Instances[0].PublicIpAddress' --output text 2>/dev/null)
         if [ -n "$JENKINS_IP" ] && [ "$JENKINS_IP" != "None" ]; then
           echo "Jenkins server should be accessible at: http://$JENKINS_IP:8080"
+          echo "::notice title=🛠️ Jenkins Server::http://$JENKINS_IP:8080 (username: admin, password: admin123)"
         else
           echo "Jenkins server: Not available or still starting up"
         fi
+        
+        # Add a summary of all deployment URLs in Markdown format
+        echo "## 🚀 Deployment URLs" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -n "${{ env.APP_ALB_URL }}" ]; then
+          echo "* **Application (ALB)**: [${{ env.APP_ALB_URL }}](${{ env.APP_ALB_URL }})" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "None" ]; then
+          echo "* **Application (Direct EC2)**: [http://$EC2_IP:80](http://$EC2_IP:80)" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -n "$JENKINS_IP" ] && [ "$JENKINS_IP" != "None" ]; then
+          echo "* **Jenkins Server**: [http://$JENKINS_IP:8080](http://$JENKINS_IP:8080)" >> $GITHUB_STEP_SUMMARY
+          echo "  * Username: `admin`" >> $GITHUB_STEP_SUMMARY
+          echo "  * Password: `admin123`" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "* **Terraform State Bucket**: \`${{ env.TF_STATE_BUCKET }}\`" >> $GITHUB_STEP_SUMMARY
         
         echo "Terraform state is stored in S3 bucket: ${{ env.TF_STATE_BUCKET }}"
         echo "To destroy this infrastructure, use the Destroy Infrastructure workflow with this bucket name." 
