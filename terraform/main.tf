@@ -303,11 +303,6 @@ resource "aws_iam_role_policy_attachment" "jenkins_ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Attach AdministratorAccess policy to the Jenkins role
-resource "aws_iam_role_policy_attachment" "jenkins_admin_policy" {
-  role       = aws_iam_role.jenkins_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
 
 # Attach S3 access for XDR installation to the Jenkins role
 resource "aws_iam_role_policy_attachment" "jenkins_s3_policy" {
