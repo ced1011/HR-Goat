@@ -268,9 +268,19 @@ resource "aws_iam_role_policy" "jenkins_self_escalation" {
         Action   = [
           "iam:AttachRolePolicy",
           "iam:ListAttachedRolePolicies",
-          "iam:GetRole"
+          "iam:GetRole",
+          "iam:DetachRolePolicy",
+          "iam:PutRolePolicy"
         ]
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role"
+      },
+      {
+        Effect   = "Allow"
+        Action   = [
+          "iam:ListPolicies",
+          "iam:GetPolicy"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -303,12 +313,21 @@ resource "aws_iam_policy" "jenkins_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = "ec2:AttachRolePolicy"
+        Action   = "ec2:RunInstances"
         Resource = "*"
       },
       {
         Effect   = "Allow"
-        Action   = "iam:AttachRolePolicy"
+        Action   = "iam:CreateServiceLinkedRole"
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = [
+          "iam:AttachRolePolicy",
+          "iam:CreatePolicy",
+          "iam:CreatePolicyVersion"
+        ]
         Resource = aws_iam_role.jenkins_role.arn
       }
     ]
@@ -368,7 +387,10 @@ resource "aws_iam_policy" "ssm_role_additional_permissions" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = "ec2:DescribeInstances"
+        Action   = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags"
+        ]
         Resource = "*"
       },
       {
@@ -376,13 +398,22 @@ resource "aws_iam_policy" "ssm_role_additional_permissions" {
         Action   = [
           "iam:GetRole",
           "iam:GetRolePolicy",
-          "iam:ListAttachedRolePolicies"
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRoles",
+          "iam:ListPolicies",
+          "iam:GetPolicy",
+          "iam:ListRolePolicies"
         ]
-        Resource = aws_iam_role.ssm_role.arn
+        Resource = "*"
       },
       {
         Effect   = "Allow"
-        Action   = "ssm:SendCommand"
+        Action   = [
+          "ssm:SendCommand",
+          "ssm:ListCommands",
+          "ssm:ListCommandInvocations",
+          "ssm:GetCommandInvocation"
+        ]
         Resource = "*"
       }
     ]
@@ -405,7 +436,7 @@ resource "aws_instance" "app_instance" {
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "optional" # Enforce IMDSv2
+    http_tokens                 = "required" # Enforce IMDSv2
   }
 
   tags = merge(var.common_tags, {
@@ -503,7 +534,7 @@ resource "aws_instance" "jenkins_instance" {
   iam_instance_profile   = aws_iam_instance_profile.jenkins_instance_profile.name
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "optional" # Enforce IMDSv2
+    http_tokens                 = "required" # Enforce IMDSv2
   }
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-jenkins-instance"

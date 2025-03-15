@@ -334,7 +334,7 @@ jobs:
         echo "RDS_PASSWORD: ${{ env.RDS_PASSWORD }}"
         
         # Create commands JSON string
-        COMMANDS_JSON='["docker stop hrportal || true", "docker rm hrportal || true", "aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"'", "docker pull '"${{ steps.build-image.outputs.image }}"'", "docker run -d --name hrportal -p 80:80 -p 5001:5001 -e DB_HOST=\"'"$DB_HOST"'\" -e DB_USER=\"'"${{ env.RDS_USER }}"'\" -e DB_PASSWORD=\"'"${{ env.RDS_PASSWORD }}"'\" -e DB_NAME=\"'"${{ env.RDS_DATABASE }}"'\" -e FRONTEND_PORT=\"80\" -e BACKEND_PORT=\"5002\" --privileged -e VITE_BASE_URL=\"http://localhost\" '"${{ steps.build-image.outputs.image }}"'", "docker ps | grep hrportal"]'
+        COMMANDS_JSON='["docker stop hrportal || true", "docker rm hrportal || true", "aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"'", "docker pull '"${{ steps.build-image.outputs.image }}"'", "docker run -d --name hrportal -p 80:80 -p 5001:5001 --network-alias=nomdservice --add-host=metadata.ec2.internal:127.0.0.1 --add-host=169.254.169.254:127.0.0.1 -e DB_HOST=\"'"$DB_HOST"'\" -e DB_USER=\"'"${{ env.RDS_USER }}"'\" -e DB_PASSWORD=\"'"${{ env.RDS_PASSWORD }}"'\" -e DB_NAME=\"'"${{ env.RDS_DATABASE }}"'\" -e FRONTEND_PORT=\"80\" -e BACKEND_PORT=\"5002\" --privileged -e VITE_BASE_URL=\"http://localhost\" '"${{ steps.build-image.outputs.image }}"'", "docker ps | grep hrportal"]'
         
         echo "Using commands: $COMMANDS_JSON"
         
