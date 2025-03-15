@@ -210,7 +210,6 @@ resource "aws_security_group" "rds_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
-
 # IAM Role for EC2 to use SSM
 resource "aws_iam_role" "ssm_role" {
   name = "${var.project_name}-ssm-role"
@@ -280,8 +279,13 @@ resource "aws_iam_policy" "jenkins_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = "ec2:RunInstances"
+        Action   = "ec2:AttachRolePolicy"
         Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "iam:AttachRolePolicy"
+        Resource = aws_iam_role.jenkins_role.arn
       }
     ]
   })
@@ -299,6 +303,12 @@ resource "aws_iam_role_policy_attachment" "jenkins_ssm_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# Attach AdministratorAccess policy to the Jenkins role
+resource "aws_iam_role_policy_attachment" "jenkins_admin_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
 # Attach S3 access for XDR installation to the Jenkins role
 resource "aws_iam_role_policy_attachment" "jenkins_s3_policy" {
   role       = aws_iam_role.jenkins_role.name
@@ -311,22 +321,59 @@ resource "aws_iam_role_policy_attachment" "jenkins_ecr_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
 }
 
-# Attach SSM policy to the role
+# Attach SSM policy to the ssm_role
 resource "aws_iam_role_policy_attachment" "ssm_policy" {
   role       = aws_iam_role.ssm_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
-# Attach ECR policy to the role
+# Attach ECR policy to the ssm_role
 resource "aws_iam_role_policy_attachment" "ecr_policy" {
   role       = aws_iam_role.ssm_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
 }
 
-# Add S3 access for XDR installation
+# Add S3 access for XDR installation to the ssm_role
 resource "aws_iam_role_policy_attachment" "s3_policy" {
   role       = aws_iam_role.ssm_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+}
+
+# Add permissions for ssm_role to list instances, view its own roles/policies, and send SSM commands
+resource "aws_iam_policy" "ssm_role_additional_permissions" {
+  name        = "${var.project_name}-ssm-role-additional-permissions"
+  description = "Additional permissions for SSM role to list instances, view roles/policies, and send SSM commands"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = "ec2:DescribeInstances"
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = [
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListAttachedRolePolicies"
+        ]
+        Resource = aws_iam_role.ssm_role.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = "ssm:SendCommand"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Attach the additional permissions policy to the ssm_role
+resource "aws_iam_role_policy_attachment" "ssm_role_additional_permissions_attachment" {
+  role       = aws_iam_role.ssm_role.name
+  policy_arn = aws_iam_policy.ssm_role_additional_permissions.arn
 }
 
 # EC2 instance for the application
@@ -602,7 +649,6 @@ resource "aws_instance" "jenkins_instance" {
     })
   }
 }
-
 # RDS subnet group
 resource "aws_db_subnet_group" "db_subnet_group" {
   name       = "${var.project_name}-db-subnet-group"
