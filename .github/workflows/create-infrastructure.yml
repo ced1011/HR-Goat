@@ -658,7 +658,7 @@ jobs:
                       
                       # Initialize variables
                       SSM_STATUS="Pending"
-                      MAX_RETRIES=30
+                      MAX_RETRIES=7
                       COUNT=0
                       
                       # Loop until the command completes or times out
