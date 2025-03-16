@@ -226,7 +226,7 @@ We find permissions allowing us to list EC2 instances and send SSM commands. Per
 
 Let’s list EC2 instances:
 ```bash
-aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, Tags[?Key==`Name`].Value|[0], State.Name]' --output table
 ```
 ![image](https://github.com/user-attachments/assets/f90a2073-464d-4aba-a12e-bc7c90257fdf)
 
