@@ -33,6 +33,10 @@ const apiProxy = createProxyMiddleware({
   target: BACKEND_URL,
   changeOrigin: true,
   logLevel: 'debug',
+  pathRewrite: {
+    // Identity function to avoid path-to-regexp URL parameter parsing issues
+    '^/api': '/api'
+  },
   onProxyReq: (proxyReq, req, res) => {
     console.log('Proxying request:', req.method, req.path, '->', proxyReq.path);
   },

@@ -33,6 +33,10 @@ const apiProxy = createProxyMiddleware({
   target: BACKEND_URL,
   changeOrigin: true,
   logLevel: 'debug',
+  pathRewrite: {
+    // Identity function to avoid path-to-regexp URL parameter parsing issues
+    '^/api': '/api'
+  },
   onProxyReq: (proxyReq, req, res) => {
     console.log('Proxying request:', req.method, req.path, '->', proxyReq.path);
   },
@@ -113,13 +117,15 @@ app.get('/api/notifications', (req, res) => {
   });
 });
 
-// Special handler for auth endpoints
-app.use('/api/auth/:endpoint', (req, res) => {
-  const endpoint = req.params.endpoint;
+// Special handler for auth endpoints - replaced parameter-based route with a regex pattern
+app.use('/api/auth/*', (req, res) => {
+  // Extract endpoint from URL path manually instead of using Express parameters
+  const pathParts = req.path.split('/');
+  const endpoint = pathParts[pathParts.length - 1];
+  
   console.log(`Handling auth ${endpoint} request directly with method ${req.method}`);
   
   let requestBody = {};
-  let responsePromise;
   
   // Handle different auth endpoints
   if (endpoint === 'login' && req.method === 'POST') {
