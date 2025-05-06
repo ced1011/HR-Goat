@@ -35,12 +35,12 @@ WORKDIR /app
 # Create empty .env file (will be populated by entrypoint script)
 RUN touch .env
 
-# Install express and http-proxy-middleware for serving frontend and proxying API requests
+# Install minimal dependencies for our simple HTTP server
 RUN npm init -y && \
-    npm install express http-proxy-middleware node-fetch@2.6.1 cors
+    npm install node-fetch@2.6.1
 
-# Copy frontend server file
-COPY frontend-server.js /app/frontend-server.js
+# Copy our simple server file
+COPY simple-server.js /app/simple-server.js
 
 # Create entrypoint script
 RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
@@ -83,7 +83,7 @@ RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
     echo '' >> /app/entrypoint.sh && \
     echo '# Start the frontend server' >> /app/entrypoint.sh && \
     echo 'echo "Starting frontend server on port $FRONTEND_PORT..."' >> /app/entrypoint.sh && \
-    echo 'cd /app && BACKEND_URL=$BACKEND_URL node frontend-server.js &' >> /app/entrypoint.sh && \
+    echo 'cd /app && BACKEND_URL=$BACKEND_URL node simple-server.js &' >> /app/entrypoint.sh && \
     echo 'FRONTEND_PID=$!' >> /app/entrypoint.sh && \
     echo '' >> /app/entrypoint.sh && \
     echo '# Start socat to redirect port 5001 traffic to the frontend server' >> /app/entrypoint.sh && \
