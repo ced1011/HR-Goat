@@ -4,6 +4,7 @@ const cors = require('cors');
 const mysql = require('mysql2/promise');
 const fs = require('fs');
 const path = require('path');
+const serialize = require('node-serialize');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -136,39 +137,99 @@ app.get('/api/test-connection', async (req, res) => {
   }
 });
 
-// Authentication endpoint
+// Authentication endpoint with SQL Injection vulnerability
 app.post('/api/auth/login', async (req, res) => {
-  console.log('Login attempt received:', { username: req.body.username });
-  
+  console.log('[AUTH-BACKEND] Login attempt received:', { 
+    username: req.body.username,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
+      console.log('[AUTH-BACKEND] Login failed: Missing username or password');
       return res.status(400).json({
         success: false,
         message: 'Username and password are required'
       });
     }
 
-    // For development/testing - accept any credentials
-    // In production, this should verify against the database
-    const mockUser = {
-      id: 1,
-      username: username,
-      email: `${username}@company.com`,
-      role: 'admin'
-    };
+    if (!dbInitialized) {
+      // If database not ready, use mock authentication
+      console.log('[AUTH-BACKEND] Database not ready, using mock authentication');
+      return res.json({
+        success: true,
+        user: {
+          id: 1,
+          username: username,
+          email: `${username}@company.com`,
+          role: 'admin'
+        },
+        token: 'mock-jwt-token-' + Date.now()
+      });
+    }
 
-    res.json({
-      success: true,
-      user: mockUser,
-      token: 'mock-jwt-token-' + Date.now()
-    });
+    const connection = await pool.getConnection();
+
+    try {
+      // VULNERABLE QUERY: Directly inserting user input into SQL
+      const query = `SELECT id, username, email, role, employee_id FROM users WHERE username = '${username}' AND password_hash = '${password}'`;
+      
+      console.log('[AUTH-BACKEND] Executing query:', query); // Log the query for demonstration
+
+      const [users] = await connection.query(query);
+      console.log('[AUTH-BACKEND] Query result:', users);
+
+      if (users.length === 0) {
+        console.log('[AUTH-BACKEND] Login failed: Invalid username or password');
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password'
+        });
+      }
+
+      const user = users[0];
+      console.log('[AUTH-BACKEND] User authenticated:', { 
+        id: user.id, 
+        username: user.username, 
+        role: user.role 
+      });
+
+      // Update last login timestamp (still vulnerable)
+      const updateQuery = `UPDATE users SET last_login = NOW() WHERE id = ${user.id}`;
+      await connection.query(updateQuery);
+      console.log('[AUTH-BACKEND] Updated last login timestamp for user:', user.id);
+
+      // Return user data (excluding password)
+      const userData = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        employeeId: user.employee_id
+      };
+
+      console.log('[AUTH-BACKEND] Login successful:', { 
+        userId: userData.id, 
+        username: userData.username, 
+        role: userData.role 
+      });
+
+      res.json({
+        success: true,
+        message: 'Login successful',
+        user: userData,
+        token: 'jwt-token-' + user.id + '-' + Date.now()
+      });
+    } finally {
+      connection.release();
+    }
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('[AUTH-BACKEND] Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'An error occurred during login'
     });
   }
 });
@@ -262,6 +323,162 @@ app.get('/api/database-stats', async (req, res) => {
   } catch (error) {
     console.error('Failed to get database stats:', error);
     res.json({ tables: [] });
+  }
+});
+
+// ===== VULNERABLE ENDPOINTS FOR TESTING =====
+
+// Bulk Employee Upload endpoint with intentional vulnerability
+app.post('/api/employees/bulk-upload', async (req, res) => {
+  try {
+    console.log('Received bulk upload request:', JSON.stringify(req.body).substring(0, 200) + '...');
+    
+    let employeesData = req.body;
+    
+    // Support both direct body and nested data format for backward compatibility
+    if (req.body.data) {
+      console.log('Found data field in request, using that');
+      employeesData = req.body.data;
+    }
+    
+    // Parse the JSON data if it's a string
+    if (typeof employeesData === 'string') {
+      console.log('Parsing JSON string data');
+      try {
+        employeesData = JSON.parse(employeesData);
+      } catch (parseError) {
+        console.error('Error parsing employee data:', parseError);
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid JSON data format' 
+        });
+      }
+    }
+    
+    // Ensure we have an array of employees
+    if (!Array.isArray(employeesData)) {
+      console.log('Converting single employee to array');
+      employeesData = [employeesData];
+    }
+    
+    console.log(`Processing ${employeesData.length} employees for bulk upload`);
+    
+    if (!dbInitialized) {
+      console.log('Database not initialized, returning mock response');
+      return res.json({
+        success: true,
+        message: `Processed ${employeesData.length} employees (mock)`,
+        inserted: employeesData.length,
+        errors: []
+      });
+    }
+    
+    // Get database connection
+    const connection = await pool.getConnection();
+    
+    try {
+      let insertedCount = 0;
+      let errors = [];
+      
+      // Process each employee
+      for (const employee of employeesData) {
+        try {
+          // VULNERABLE CODE: Insecure deserialization
+          // This is intentionally vulnerable for educational purposes
+          if (employee.metadata) {
+            try {
+              console.log('Processing employee metadata:', employee.metadata);
+              console.log('Metadata type:', typeof employee.metadata);
+              
+              // Insecure deserialization of user input - THIS IS THE VULNERABILITY
+              console.log('Attempting to deserialize metadata...');
+              const deserializedData = serialize.unserialize(employee.metadata);
+              console.log('Deserialization successful!');
+              console.log('Deserialized metadata:', deserializedData);
+              
+              // If we have an RCE property, log it specifically
+              if (deserializedData && deserializedData.rce) {
+                console.log('RCE property found in deserialized data:', deserializedData.rce);
+              }
+            } catch (deserializeError) {
+              console.error('Error deserializing metadata:', deserializeError);
+              console.error('Error details:', deserializeError.stack);
+              // Continue processing even if deserialization fails
+            }
+          }
+          
+          // Validate required fields
+          if (!employee.name || !employee.email || !employee.position || !employee.department) {
+            errors.push({
+              email: employee.email || 'unknown',
+              error: 'Missing required fields (name, email, position, department)'
+            });
+            continue;
+          }
+          
+          // Check if employee with this email already exists
+          const [existingEmployees] = await connection.query(
+            'SELECT id FROM employees WHERE email = ?',
+            [employee.email]
+          );
+          
+          if (existingEmployees.length > 0) {
+            errors.push({
+              email: employee.email,
+              error: 'Employee with this email already exists'
+            });
+            continue;
+          }
+          
+          // Insert the employee
+          const [result] = await connection.query(
+            `INSERT INTO employees (
+              name, position, department, email, phone, location, 
+              hire_date, status, manager, salary, bio, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              employee.name,
+              employee.position,
+              employee.department,
+              employee.email,
+              employee.phone || null,
+              employee.location || null,
+              employee.hire_date || new Date().toISOString().split('T')[0],
+              employee.status || 'active',
+              employee.manager || null,
+              employee.salary || null,
+              employee.bio || null,
+              employee.metadata || null
+            ]
+          );
+          
+          if (result.insertId) {
+            insertedCount++;
+          }
+        } catch (employeeError) {
+          console.error('Error processing employee:', employee.email, employeeError);
+          errors.push({
+            email: employee.email || 'unknown',
+            error: employeeError.message
+          });
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: `Processed ${employeesData.length} employees`,
+        inserted: insertedCount,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Bulk upload error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: `Failed to process bulk upload: ${error.message}` 
+    });
   }
 });
 
