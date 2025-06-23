@@ -57,6 +57,9 @@ async function initializeDatabase() {
     // Initialize tables
     await createTables();
     
+    // Seed database with mock data if it's empty
+    await seedDatabase();
+
     dbInitialized = true;
     console.log('Database initialization complete');
   } catch (error) {
@@ -108,6 +111,49 @@ async function createTables() {
     
     // Create other necessary tables...
     console.log('Tables created successfully');
+    
+    // Insert a default admin user if one doesn't exist
+    const [users] = await connection.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    if (users.length === 0) {
+      console.log('No admin user found, creating one...');
+      await connection.query(
+        `INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)`,
+        ['admin', 'admin@hrgoat.com', 'admin_password', 'admin']
+      );
+      console.log('Default admin user created.');
+    }
+    
+  } finally {
+    connection.release();
+  }
+}
+
+// Seed the database with mock data
+async function seedDatabase() {
+  const connection = await pool.getConnection();
+  try {
+    // Check if the users table already has data
+    const [users] = await connection.query('SELECT COUNT(*) as count FROM users');
+    if (users[0].count > 0) {
+      console.log('Database already seeded. Skipping mock data insertion.');
+      return;
+    }
+
+    console.log('Database is empty. Seeding with mock data...');
+    const mockDataScriptPath = path.join(__dirname, 'src', 'lib', 'sql', 'insert-mock-data.sql');
+    const mockDataScript = fs.readFileSync(mockDataScriptPath, 'utf8');
+
+    // Split the script into individual statements
+    const statements = mockDataScript.split(';').filter(statement => statement.trim() !== '');
+
+    // Execute each statement
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+
+    console.log('Mock data inserted successfully.');
+  } catch (error) {
+    console.error('Error seeding database:', error);
   } finally {
     connection.release();
   }
