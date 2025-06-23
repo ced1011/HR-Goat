@@ -1,0 +1,42 @@
+# Use Node.js Alpine for smaller image
+FROM node:16-alpine
+
+# Install bash for scripts
+RUN apk add --no-cache bash curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+COPY server/package*.json ./server/
+
+# Install dependencies
+RUN npm install --production --legacy-peer-deps
+WORKDIR /app/server
+RUN npm install --production --legacy-peer-deps
+WORKDIR /app
+
+# Copy application files
+COPY dist/ ./dist/
+COPY server/ ./server/
+COPY src/ ./src/
+COPY public/ ./public/
+COPY scripts/ ./scripts/
+COPY unified-server.cjs ./
+
+# Create uploads directory
+RUN mkdir -p ./server/uploads
+
+# Create .env file
+RUN touch .env
+
+# Expose only port 8080
+EXPOSE 8080
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Start the unified server
+CMD ["node", "unified-server.cjs"] 

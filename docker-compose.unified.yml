@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  hrgoat:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_HOST=database
+      - DB_USER=root
+      - DB_PASSWORD=password
+      - DB_NAME=hrportal
+    depends_on:
+      - database
+    restart: unless-stopped
+
+  database:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=hrportal
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    restart: unless-stopped
+
+volumes:
+  mysql_data: 
