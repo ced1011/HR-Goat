@@ -44,9 +44,9 @@ pipeline {
                         // Login to ECR
                         sh "aws ecr get-login-password --region ${env.AWS_REGION} | docker login --username AWS --password-stdin ${env.ECR_REPOSITORY.split('/')[0]}"
                         
-                        // Build and tag Docker image
+                        // Build and tag Docker image using unified Dockerfile
                         DOCKER_IMAGE = "${env.ECR_REPOSITORY}:${env.BUILD_NUMBER}"
-                        sh "docker build -t ${DOCKER_IMAGE} ."
+                        sh "docker build -f Dockerfile.unified -t ${DOCKER_IMAGE} ."
                         sh "docker tag ${DOCKER_IMAGE} ${env.ECR_REPOSITORY}:latest"
                         
                         // Push Docker image to ECR
@@ -77,14 +77,15 @@ pipeline {
                                 # Pull the latest image
                                 docker pull ${DOCKER_IMAGE}
                                 
-                                # Run the container with environment variables
+                                # Run the container with environment variables for unified server
                                 docker run -d \\
                                 --name hrportal \\
-                                -p 3000:3000 \\
+                                -p 80:8080 \\
                                 -e DB_HOST='${env.RDS_HOST}' \\
                                 -e DB_USER='${env.RDS_USER}' \\
                                 -e DB_PASSWORD='${env.RDS_PASSWORD}' \\
                                 -e DB_NAME='${env.RDS_DATABASE}' \\
+                                -e PORT='8080' \\
                                 ${DOCKER_IMAGE}
                                 
                                 # Check if container is running
