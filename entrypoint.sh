@@ -7,7 +7,7 @@ DB_USER=${DB_USER:-"user"}
 DB_PASSWORD=${DB_PASSWORD:-"password"}
 DB_NAME=${DB_NAME:-"hrportal"}
 FRONTEND_PORT=${FRONTEND_PORT:-"80"}
-BACKEND_PORT=${BACKEND_PORT:-"5002"}
+BACKEND_PORT=${BACKEND_PORT:-"5001"}
 BACKEND_URL="http://localhost:${BACKEND_PORT}"
 echo "Setting FRONTEND_PORT to $FRONTEND_PORT"
 echo "Setting BACKEND_PORT to $BACKEND_PORT"
@@ -29,7 +29,7 @@ if [ ! -f /app/server.js ]; then
   ln -s /app/server/server.js /app/server.js
 fi
 
-# Start the backend server with a different internal port (5002)
+# Start the backend server with a different internal port (5001)
 echo "Starting backend server on port $BACKEND_PORT..."
 cd /app/server && PORT=$BACKEND_PORT node server.js &
 BACKEND_PID=$!

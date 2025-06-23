@@ -6,7 +6,7 @@ const cors = require('cors');
 const http = require('http');
 const app = express();
 const PORT = process.env.FRONTEND_PORT || 80;
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5002';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 // Enable CORS for all routes
 app.use(cors({

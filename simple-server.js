@@ -6,7 +6,7 @@ const fetch = require('node-fetch');
 
 console.log('Simple frontend server starting...');
 const PORT = process.env.FRONTEND_PORT || 80;
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5002';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 // List of supported content types
 const contentTypes = {

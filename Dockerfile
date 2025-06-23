@@ -51,7 +51,7 @@ RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
     echo 'DB_PASSWORD=${DB_PASSWORD:-"password"}' >> /app/entrypoint.sh && \
     echo 'DB_NAME=${DB_NAME:-"hrportal"}' >> /app/entrypoint.sh && \
     echo 'FRONTEND_PORT=${FRONTEND_PORT:-"80"}' >> /app/entrypoint.sh && \
-    echo 'BACKEND_PORT=${BACKEND_PORT:-"5002"}' >> /app/entrypoint.sh && \
+    echo 'BACKEND_PORT=${BACKEND_PORT:-"5001"}' >> /app/entrypoint.sh && \
     echo 'BACKEND_URL="http://localhost:${BACKEND_PORT}"' >> /app/entrypoint.sh && \
     echo 'echo "Setting FRONTEND_PORT to $FRONTEND_PORT"' >> /app/entrypoint.sh && \
     echo 'echo "Setting BACKEND_PORT to $BACKEND_PORT"' >> /app/entrypoint.sh && \
@@ -73,7 +73,7 @@ RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
     echo '  ln -s /app/server/server.js /app/server.js' >> /app/entrypoint.sh && \
     echo 'fi' >> /app/entrypoint.sh && \
     echo '' >> /app/entrypoint.sh && \
-    echo '# Start the backend server with a different internal port (5002)' >> /app/entrypoint.sh && \
+    echo '# Start the backend server with a different internal port (5001)' >> /app/entrypoint.sh && \
     echo 'echo "Starting backend server on port $BACKEND_PORT..."' >> /app/entrypoint.sh && \
     echo 'cd /app/server && PORT=$BACKEND_PORT node server.js &' >> /app/entrypoint.sh && \
     echo 'BACKEND_PID=$!' >> /app/entrypoint.sh && \
