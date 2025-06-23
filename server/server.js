@@ -73,9 +73,9 @@ app.use('/uploads/profile', (req, res, next) => {
 
 // Database configuration
 const dbConfig = {
-  host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
-  user: 'admin',
-  password: 'OLLI4RVKjgWdHVfc52b6',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
