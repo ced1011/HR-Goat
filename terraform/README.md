@@ -27,10 +27,10 @@ cp terraform.tfvars.example terraform.tfvars
 2. Edit `terraform.tfvars` to set your specific values:
 
 ```hcl
-aws_region        = "us-east-1"              # Your preferred AWS region
+aws_region        = "us-west-1"              # Your preferred AWS region
 vpc_id           = "vpc-0123456789abcdef0"   # Your existing VPC ID
 project_name     = "hrgoat"                  # Project name for resource naming
-ec2_ami_id       = "ami-0c7217cdde317cfec"   # AMI ID (default is Amazon Linux 2023 in us-east-1)
+ec2_ami_id       = "ami-0c7217cdde317cfec"   # AMI ID (default is Amazon Linux 2023 in us-west-1)
 ec2_instance_type = "t2.micro"               # EC2 instance type
 key_name         = "your-key-pair-name"      # Your SSH key pair name
 db_instance_class = "db.t3.micro"            # RDS instance class

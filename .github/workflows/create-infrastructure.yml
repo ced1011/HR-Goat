@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: us-west-1
   TF_STATE_BUCKET_PREFIX: "hrgoat-tfstate-do-not-delete"
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
@@ -35,7 +35,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: "us-east-1"
+        aws-region: "us-west-1"
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2

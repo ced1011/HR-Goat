@@ -10,7 +10,7 @@ on:
 
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: us-west-1
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
   DB_PASSWORD: "hrportaladmin123"

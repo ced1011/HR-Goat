@@ -14,7 +14,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-west-1"
 }
 
 # Get current AWS account ID
@@ -473,7 +473,7 @@ resource "aws_instance" "app_instance" {
     mkdir -p /root/.aws
     cat > /root/.aws/config <<EOL
     [default]
-    region = us-east-1
+    region = us-west-1
     EOL
 
     # Install and start SSM Agent with special care
