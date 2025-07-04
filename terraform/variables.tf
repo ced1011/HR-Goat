@@ -1,19 +1,13 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-west-1"
+  default     = "us-east-1"
 }
 
 variable "project_name" {
   description = "Name of the project for resource naming"
   type        = string
   default     = "hrgoat"
-}
-
-variable "ec2_ami_id" {
-  description = "AMI ID for the EC2 instances"
-  type        = string
-  default     = "ami-0277155c3f0ab2930"
 }
 
 variable "ec2_instance_type" {

@@ -45,7 +45,7 @@ const DatabaseConnectionCard: React.FC<DatabaseConnectionCardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <h3 className="text-sm font-medium mb-1">Host</h3>
-              <p className="text-sm">database-1.cluster-cnye4gmgu5x2.us-west-1.rds.amazonaws.com</p>
+              <p className="text-sm">database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com</p>
             </div>
             <div>
               <h3 className="text-sm font-medium mb-1">Username</h3>

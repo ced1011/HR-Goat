@@ -2,9 +2,26 @@ name: Create Infrastructure and Deploy Application
 
 on:
   workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS Region to deploy to'
+        required: true
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+          - us-west-1
+          - us-west-2
+          - eu-west-1
+          - eu-west-2
+          - eu-central-1
+          - ap-southeast-1
+          - ap-southeast-2
+          - ap-northeast-1
+        default: 'us-east-1'
 
 env:
-  AWS_REGION: us-west-1
+  AWS_REGION: ${{ github.event.inputs.aws_region }}
   TF_STATE_BUCKET_PREFIX: "hrgoat-tfstate-do-not-delete"
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
@@ -35,7 +52,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: "us-west-1"
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
@@ -45,9 +62,9 @@ jobs:
     - name: Create unique S3 bucket name for Terraform state
       id: create_bucket
       run: |
-        # Generate unique bucket name with epoch timestamp
+        # Generate unique bucket name with epoch timestamp and region
         TIMESTAMP=$(date +%s)
-        BUCKET_NAME="${{ env.TF_STATE_BUCKET_PREFIX }}-${TIMESTAMP}"
+        BUCKET_NAME="${{ env.TF_STATE_BUCKET_PREFIX }}-${{ env.AWS_REGION }}-${TIMESTAMP}"
         echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
         echo "Using bucket name: ${BUCKET_NAME}"
 
@@ -55,14 +72,22 @@ jobs:
       run: |
         BUCKET_NAME="${{ steps.create_bucket.outputs.bucket_name }}"
         
-        aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
-        aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}
+        # For us-east-1, don't specify location constraint
+        if [ "${{ env.AWS_REGION }}" == "us-east-1" ]; then
+          aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
+          aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}
+        else
+          aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
+          aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }} \
+            --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}
+        fi
         
         # Enable versioning
         aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Enabled
         
         # Store bucket name in a file that will be stored in S3 for reference by destroy workflow
         echo "BUCKET_NAME=${BUCKET_NAME}" > bucket-name.txt
+        echo "REGION=${{ env.AWS_REGION }}" >> bucket-name.txt
         aws s3 cp bucket-name.txt s3://${BUCKET_NAME}/bucket-name.txt
 
     - name: Terraform Init
@@ -76,7 +101,7 @@ jobs:
     - name: Terraform Plan
       run: |
         cd terraform
-        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -out=tfplan
+        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -var="aws_region=${{ env.AWS_REGION }}" -out=tfplan
 
     - name: Terraform Apply
       run: |

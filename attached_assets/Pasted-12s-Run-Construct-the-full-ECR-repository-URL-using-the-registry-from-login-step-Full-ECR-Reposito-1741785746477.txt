@@ -1,6 +1,6 @@
 12s
 Run # Construct the full ECR repository URL using the registry from login step
-Full ECR Repository URL: ***.dkr.ecr.us-west-1.amazonaws.com/hrgoat-app-repository
+Full ECR Repository URL: ***.dkr.ecr.us-east-1.amazonaws.com/hrgoat-app-repository
 #0 building with "default" instance using docker driver
 
 #1 [internal] load build definition from Dockerfile

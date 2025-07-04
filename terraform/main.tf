@@ -14,11 +14,32 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-west-1"
+  region = var.aws_region
 }
 
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
+
+# Get available availability zones in the current region
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+# Get the most recent Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
 
 # Create a new VPC
 resource "aws_vpc" "main" {
@@ -35,7 +56,7 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
   
   tags = merge(var.common_tags, {
@@ -46,7 +67,7 @@ resource "aws_subnet" "public_a" {
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
+  availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
   
   tags = merge(var.common_tags, {
@@ -428,7 +449,7 @@ resource "aws_iam_role_policy_attachment" "ssm_role_additional_permissions_attac
 
 # EC2 instance for the application
 resource "aws_instance" "app_instance" {
-  ami           = var.ec2_ami_id
+  ami           = data.aws_ami.amazon_linux_2.id
   instance_type = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   subnet_id     = aws_subnet.public_a.id
@@ -473,7 +494,7 @@ resource "aws_instance" "app_instance" {
     mkdir -p /root/.aws
     cat > /root/.aws/config <<EOL
     [default]
-    region = us-west-1
+    region = ${var.aws_region}
     EOL
 
     # Install and start SSM Agent with special care
@@ -527,7 +548,7 @@ resource "aws_instance" "app_instance" {
 
 # EC2 instance for Jenkins
 resource "aws_instance" "jenkins_instance" {
-  ami                    = var.ec2_ami_id
+  ami                    = data.aws_ami.amazon_linux_2.id
   instance_type          = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   subnet_id              = aws_subnet.public_a.id
