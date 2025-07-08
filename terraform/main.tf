@@ -41,6 +41,88 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
+# Option 1: Amazon Linux 2023 (kernel 6.1+)
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+# Option 2: Ubuntu 22.04 LTS (kernel 5.15+)
+data "aws_ami" "ubuntu_22_04" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 3: Ubuntu 20.04 LTS with HWE kernel (5.13+)
+data "aws_ami" "ubuntu_20_04_hwe" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 4: Debian 11 (kernel 5.10, can be upgraded to 5.13+)
+data "aws_ami" "debian_11" {
+  most_recent = true
+  owners      = ["136693071363"] # Debian
+
+  filter {
+    name   = "name"
+    values = ["debian-11-amd64-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Local values for AMI selection based on kernel version
+locals {
+  ami_map = {
+    "amazon-linux-2"     = data.aws_ami.amazon_linux_2.id
+    "amazon-linux-2023"  = data.aws_ami.amazon_linux_2023.id
+    "ubuntu-22-04"       = data.aws_ami.ubuntu_22_04.id
+    "ubuntu-20-04-hwe"   = data.aws_ami.ubuntu_20_04_hwe.id
+    "debian-11"          = data.aws_ami.debian_11.id
+  }
+  
+  selected_ami = local.ami_map[var.ec2_kernel_version]
+}
+
 # Create a new VPC
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -449,7 +531,7 @@ resource "aws_iam_role_policy_attachment" "ssm_role_additional_permissions_attac
 
 # EC2 instance for the application
 resource "aws_instance" "app_instance" {
-  ami           = data.aws_ami.amazon_linux_2.id
+  ami           = local.selected_ami  # AMI selected based on var.ec2_kernel_version
   instance_type = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   subnet_id     = aws_subnet.public_a.id
@@ -501,12 +583,9 @@ resource "aws_instance" "app_instance" {
     echo "Installing and configuring SSM Agent..."
     yum install -y amazon-ssm-agent
 
-    # Install Docker with robust error handling
+    # Install Docker (Amazon Linux 2023 method)
     echo "Installing Docker..."
-    amazon-linux-extras install -y docker || {
-      echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-      yum install -y docker
-    }
+    yum install -y docker
 
     # Make sure Docker service is enabled and started with retries
     echo "Enabling and starting Docker service..."
@@ -548,7 +627,7 @@ resource "aws_instance" "app_instance" {
 
 # EC2 instance for Jenkins
 resource "aws_instance" "jenkins_instance" {
-  ami                    = data.aws_ami.amazon_linux_2.id
+  ami                    = local.selected_ami  # AMI selected based on var.ec2_kernel_version
   instance_type          = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   subnet_id              = aws_subnet.public_a.id
@@ -584,12 +663,9 @@ resource "aws_instance" "jenkins_instance" {
               echo "Installing Java..."
               yum install -y java-11-amazon-corretto
               
-              # Install Docker with robust error handling
+              # Install Docker (Amazon Linux 2023 method)
               echo "Installing Docker..."
-              amazon-linux-extras install -y docker || {
-                echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-                yum install -y docker
-              }
+              yum install -y docker
               
               # Make sure Docker service is enabled and started with retries
               echo "Enabling and starting Docker service..."

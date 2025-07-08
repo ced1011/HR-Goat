@@ -30,13 +30,25 @@ cp terraform.tfvars.example terraform.tfvars
 aws_region        = "us-east-1"              # Your preferred AWS region
 vpc_id           = "vpc-0123456789abcdef0"   # Your existing VPC ID
 project_name     = "hrgoat"                  # Project name for resource naming
-ec2_ami_id       = "ami-0c7217cdde317cfec"   # AMI ID (default is Amazon Linux 2023 in us-east-1)
 ec2_instance_type = "t2.micro"               # EC2 instance type
 key_name         = "your-key-pair-name"      # Your SSH key pair name
 db_instance_class = "db.t3.micro"            # RDS instance class
 db_username      = "admin"                   # RDS username
 db_password      = "YourStrongPassword123!"  # RDS password (use a secure password)
+ec2_kernel_version = "amazon-linux-2023"     # Kernel version (see below for options)
 ```
+
+### EC2 Kernel Version Options
+
+The `ec2_kernel_version` variable allows you to choose EC2 instances with different Linux kernel versions:
+
+- **`amazon-linux-2`**: Amazon Linux 2 with kernel 4.14.x
+- **`amazon-linux-2023`** (default): Amazon Linux 2023 with kernel 6.1+ ✅ Recommended
+- **`ubuntu-22-04`**: Ubuntu 22.04 LTS with kernel 5.15+
+- **`ubuntu-20-04-hwe`**: Ubuntu 20.04 LTS with HWE kernel 5.13+
+- **`debian-11`**: Debian 11 with kernel 5.10 (upgradeable to 5.13+)
+
+For detailed information about kernel versions and migration considerations, see [EC2_KERNEL_GUIDE.md](EC2_KERNEL_GUIDE.md).
 
 ## Manual Deployment
 

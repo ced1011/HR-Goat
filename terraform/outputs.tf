@@ -66,4 +66,37 @@ output "alb_dns_name" {
 output "app_alb_url" {
   description = "URL to access the application through ALB"
   value       = "http://${aws_lb.app_alb.dns_name}"
+}
+
+output "selected_kernel_version" {
+  description = "Selected kernel version for EC2 instances"
+  value       = var.ec2_kernel_version
+}
+
+output "selected_ami_id" {
+  description = "AMI ID used for EC2 instances"
+  value       = local.selected_ami
+}
+
+output "kernel_version_info" {
+  description = "Information about the selected kernel version"
+  value = {
+    selection = var.ec2_kernel_version
+    ami_id    = local.selected_ami
+    expected_kernel = {
+      "amazon-linux-2"     = "4.14.x"
+      "amazon-linux-2023"  = "6.1.x+"
+      "ubuntu-22-04"       = "5.15.x+"
+      "ubuntu-20-04-hwe"   = "5.13.x+"
+      "debian-11"          = "5.10.x (upgradeable to 5.13+)"
+    }[var.ec2_kernel_version]
+  }
+}
+
+output "verify_kernel_command" {
+  description = "Commands to verify kernel version on deployed instances"
+  value = {
+    app_instance = "aws ssm start-session --target ${aws_instance.app_instance.id} --document-name AWS-RunShellScript --parameters 'commands=[\"uname -r\"]'"
+    jenkins_instance = "aws ssm start-session --target ${aws_instance.jenkins_instance.id} --document-name AWS-RunShellScript --parameters 'commands=[\"uname -r\"]'"
+  }
 } 

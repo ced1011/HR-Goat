@@ -1,0 +1,37 @@
+# Example Terraform Variables
+# Copy this file to terraform.tfvars and update with your values
+
+# AWS region to deploy resources
+aws_region = "us-east-1"
+
+# Project name for resource naming
+project_name = "hrgoat"
+
+# EC2 instance type
+ec2_instance_type = "t2.micro"
+
+# RDS instance class
+db_instance_class = "db.t3.micro"
+
+# RDS username
+db_username = "admin"
+
+# RDS password (use a strong password in production)
+db_password = "YourStrongPassword123!"
+
+# EC2 kernel version preference
+# Options:
+#   - "amazon-linux-2"     (kernel 4.14.x)
+#   - "amazon-linux-2023"  (kernel 6.1+ - RECOMMENDED)
+#   - "ubuntu-22-04"       (kernel 5.15+)
+#   - "ubuntu-20-04-hwe"   (kernel 5.13+)
+#   - "debian-11"          (kernel 5.10, upgradeable to 5.13+)
+ec2_kernel_version = "amazon-linux-2023"
+
+# Common tags to apply to all resources
+common_tags = {
+  App  = "HR-GOAT-APP"
+  Note = "For security testing"
+  Name = "DemoHRApp"
+  Link = "https://github.com/SilentProcess87/cyber-lab-hr-simulator"
+} 
