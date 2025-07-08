@@ -236,7 +236,7 @@ resource "aws_security_group" "rds_sg" {
 }
 # IAM Role for EC2 to use SSM
 resource "aws_iam_role" "ssm_role" {
-  name = "${var.project_name}-ssm-role"
+  name = "${var.project_name}-ssm-role-${var.aws_region}"
   
   tags = var.common_tags
 
@@ -256,10 +256,10 @@ resource "aws_iam_role" "ssm_role" {
 
 # Create Jenkins IAM role for more permissions
 resource "aws_iam_role" "jenkins_role" {
-  name = "${var.project_name}-jenkins-role"
+  name = "${var.project_name}-jenkins-role-${var.aws_region}"
   
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-jenkins-role"
+    Name = "${var.project_name}-jenkins-role-${var.aws_region}"
   })
 
   assume_role_policy = jsonencode({
@@ -293,7 +293,7 @@ resource "aws_iam_role_policy" "jenkins_self_escalation" {
           "iam:DetachRolePolicy",
           "iam:PutRolePolicy"
         ]
-        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role-${var.aws_region}"
       },
       {
         Effect   = "Allow"
@@ -309,19 +309,19 @@ resource "aws_iam_role_policy" "jenkins_self_escalation" {
 
 # Create instance profile for EC2
 resource "aws_iam_instance_profile" "ssm_instance_profile" {
-  name = "${var.project_name}-ssm-instance-profile"
+  name = "${var.project_name}-ssm-instance-profile-${var.aws_region}"
   role = aws_iam_role.ssm_role.name
 }
 
 # Create instance profile for Jenkins
 resource "aws_iam_instance_profile" "jenkins_instance_profile" {
-  name = "${var.project_name}-jenkins-instance-profile"
+  name = "${var.project_name}-jenkins-instance-profile-${var.aws_region}"
   role = aws_iam_role.jenkins_role.name
 }
 
 # Create Jenkins IAM policy
 resource "aws_iam_policy" "jenkins_policy" {
-  name        = "${var.project_name}-jenkins-policy"
+  name        = "${var.project_name}-jenkins-policy-${var.aws_region}"
   description = "Policy for Jenkins instance with iam:PassRole and ec2:RunInstances permissions"
 
   policy = jsonencode({
@@ -400,7 +400,7 @@ resource "aws_iam_role_policy_attachment" "s3_policy" {
 
 # Add permissions for ssm_role to list instances, view its own roles/policies, and send SSM commands
 resource "aws_iam_policy" "ssm_role_additional_permissions" {
-  name        = "${var.project_name}-ssm-role-additional-permissions"
+  name        = "${var.project_name}-ssm-role-additional-permissions-${var.aws_region}"
   description = "Additional permissions for SSM role to list instances, view roles/policies, and send SSM commands"
 
   policy = jsonencode({

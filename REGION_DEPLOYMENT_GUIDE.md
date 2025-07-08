@@ -63,6 +63,7 @@ Each region deployment is completely isolated:
 - Separate state buckets per region
 - Independent resource namespaces
 - No overlap between deployments
+- Region-specific IAM roles and policies
 
 ### Region-Specific Resources
 
@@ -70,6 +71,16 @@ Some resources are region-specific and handled automatically:
 - **AMI IDs**: Amazon Linux 2 AMIs are automatically selected for each region
 - **Availability Zones**: The first two available zones in each region are used
 - **S3 Buckets**: Created with region-specific names
+- **IAM Resources**: IAM roles and policies include the region in their names (e.g., `hrgoat-ssm-role-us-west-2`)
+
+### IAM Resources Naming
+
+To prevent conflicts when deploying to multiple regions, all IAM resources now include the region in their names:
+- IAM Roles: `hrgoat-ssm-role-{region}`, `hrgoat-jenkins-role-{region}`
+- IAM Instance Profiles: `hrgoat-ssm-instance-profile-{region}`, `hrgoat-jenkins-instance-profile-{region}`
+- IAM Policies: `hrgoat-jenkins-policy-{region}`, `hrgoat-ssm-role-additional-permissions-{region}`
+
+This ensures that each regional deployment has its own set of IAM resources, preventing naming conflicts.
 
 ### Local Development
 
