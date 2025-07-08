@@ -1,8 +1,16 @@
 pipeline {
     agent any
     
+    parameters {
+        choice(
+            name: 'AWS_REGION',
+            choices: ['us-east-1', 'us-east-2', 'us-west-1', 'us-west-2', 'eu-west-1', 'eu-west-2', 'eu-central-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1'],
+            description: 'AWS Region for deployment'
+        )
+    }
+    
     environment {
-        AWS_REGION = 'us-east-1'
+        AWS_REGION = "${params.AWS_REGION}"
         ECR_REPOSITORY = credentials('ECR_REPOSITORY')
         EC2_INSTANCE_ID = credentials('EC2_INSTANCE_ID')
         RDS_HOST = credentials('RDS_HOST')
