@@ -1,5 +1,5 @@
-# Use Node.js Alpine for smaller image
-FROM node:18-alpine
+# Use Amazon ECR Public Gallery Node.js Alpine for better AWS compatibility
+FROM public.ecr.aws/docker/library/node:18-alpine
 
 # Install bash for scripts
 RUN apk add --no-cache bash curl
@@ -39,4 +39,4 @@ ENV NODE_ENV=production
 ENV PORT=8080
 
 # Start the unified server
-CMD ["node", "unified-server.cjs"] 
+CMD ["node", "unified-server.cjs"]

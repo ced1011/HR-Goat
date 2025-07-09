@@ -1,5 +1,5 @@
 # Use a Node.js image
-FROM node:16-alpine
+FROM node:18-alpine
 
 # Install socat for port redirection
 RUN apk add --no-cache bash curl wget socat
