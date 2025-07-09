@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo "==== Container Escape Safety Check (Lab Only) ===="
+apk add jq
 
 function suggest_exploit() {
   local reason=$1
