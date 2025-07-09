@@ -59,6 +59,6 @@ variable "ec2_kernel_version" {
       "ubuntu-20-04-hwe",
       "debian-11"
     ], var.ec2_kernel_version)
-    error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11"
+    error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11."
   }
 } 
