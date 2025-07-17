@@ -110,24 +110,24 @@ data "aws_ami" "debian_11" {
   }
 }
 
-# Option 5: CentOS 7 (Latest Stable)
-data "aws_ami" "centos_7" {
+# Option 5: CentOS Stream 9 (Latest Stable)
+data "aws_ami" "centos_7" {  # Keeping variable name for compatibility
   most_recent = true
-  owners      = ["679593333241"] # CentOS
-
+  owners      = ["125523088429"] # CentOS official account
+  
   filter {
     name   = "name"
-    values = ["CentOS 7.*x86_64*"]
+    values = ["CentOS Stream 9*"]
   }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
+  
   filter {
     name   = "architecture"
     values = ["x86_64"]
+  }
+  
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 

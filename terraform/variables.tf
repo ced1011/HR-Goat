@@ -47,7 +47,7 @@ variable "common_tags" {
 }
 
 variable "ec2_kernel_version" {
-  description = "Kernel version preference for EC2 instances. Options: 'amazon-linux-2' (kernel 4.14), 'amazon-linux-2023' (kernel 6.1+), 'ubuntu-22-04' (kernel 5.15+), 'ubuntu-20-04-hwe' (kernel 5.13+), 'debian-11' (kernel 5.10), 'centos-7' (kernel 3.10 - latest stable)"
+  description = "Kernel version preference for EC2 instances. Options: 'amazon-linux-2' (kernel 4.14), 'amazon-linux-2023' (kernel 6.1+), 'ubuntu-22-04' (kernel 5.15+), 'ubuntu-20-04-hwe' (kernel 5.13+), 'debian-11' (kernel 5.10), 'centos-7' (CentOS Stream 9 - kernel 5.14+)"
   type        = string
   default     = "centos-7"
   
