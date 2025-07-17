@@ -111,18 +111,24 @@ data "aws_ami" "debian_11" {
 }
 
 # Option 5: CentOS Stream 9 (Latest Stable)
+# Using direct AMI lookup for CentOS Stream 9 in us-east-1
 data "aws_ami" "centos_7" {  # Keeping variable name for compatibility
   most_recent = true
   owners      = ["125523088429"] # CentOS official account
   
   filter {
     name   = "name"
-    values = ["CentOS Stream 9*"]
+    values = ["CentOS Stream 9 x86_64*"]
   }
   
   filter {
-    name   = "architecture"
+    name   = "architecture" 
     values = ["x86_64"]
+  }
+  
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
   }
   
   filter {

@@ -89,6 +89,7 @@ output "kernel_version_info" {
       "ubuntu-22-04"       = "5.15.x+"
       "ubuntu-20-04-hwe"   = "5.13.x+"
       "debian-11"          = "5.10.x (upgradeable to 5.13+)"
+      "centos-7"           = "5.14.x+ (CentOS Stream 9)"
     }[var.ec2_kernel_version]
   }
 }
