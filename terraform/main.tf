@@ -595,15 +595,16 @@ resource "aws_instance" "app_instance" {
     echo "Updating system packages..."
     yum update -y
 
-    # Install AWS CLI first for SSM registration
-    echo "Installing AWS CLI..."
-    # For CentOS 7, install Python 3 and pip first
-    yum install -y python3 python3-pip
-    pip3 install awscli --upgrade --user
+    # Install AWS CLI v2 system-wide
+    echo "Installing AWS CLI v2..."
+    yum install -y unzip curl
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    ./aws/install
+    rm -rf awscliv2.zip aws/
     
-    # Add aws to PATH
-    export PATH=$PATH:/root/.local/bin
-    echo 'export PATH=$PATH:/root/.local/bin' >> /etc/bashrc
+    # Verify AWS CLI installation
+    echo "AWS CLI version: $(aws --version)"
 
     # Configure AWS CLI with the instance region
     echo "Configuring AWS CLI default region..."
@@ -612,6 +613,18 @@ resource "aws_instance" "app_instance" {
     [default]
     region = ${var.aws_region}
     EOL
+    
+    # Also configure for ec2-user and ssm-user
+    mkdir -p /home/ec2-user/.aws
+    cat > /home/ec2-user/.aws/config <<EOL
+    [default]
+    region = ${var.aws_region}
+    EOL
+    chown -R ec2-user:ec2-user /home/ec2-user/.aws
+
+    # Configure global AWS region for all users
+    echo "export AWS_DEFAULT_REGION=${var.aws_region}" >> /etc/profile.d/aws.sh
+    chmod +x /etc/profile.d/aws.sh
 
     # Install and start SSM Agent with special care
     echo "Installing and configuring SSM Agent..."
@@ -702,7 +715,17 @@ resource "aws_instance" "jenkins_instance" {
               
               # Install useful utilities
               echo "Installing utilities..."
-              yum install -y git wget unzip jq
+              yum install -y git wget unzip jq curl
+              
+              # Install AWS CLI v2 system-wide
+              echo "Installing AWS CLI v2..."
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              rm -rf awscliv2.zip aws/
+              
+              # Verify AWS CLI installation
+              echo "AWS CLI version: $(aws --version)"
               
               # Install Java (CentOS 7 - OpenJDK 11)
               echo "Installing Java..."

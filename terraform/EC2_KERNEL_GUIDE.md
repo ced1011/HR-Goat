@@ -159,6 +159,8 @@ unzip awscliv2.zip
 sudo ./aws/install
 ```
 
+CentOS Stream 9 also requires manual installation, which is handled in the user data script using the same AWS CLI v2 installation method.
+
 ## Kernel Version Verification
 
 To verify the kernel version after instance launch:
