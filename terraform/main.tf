@@ -110,6 +110,27 @@ data "aws_ami" "debian_11" {
   }
 }
 
+# Option 5: CentOS 7 (Latest Stable)
+data "aws_ami" "centos_7" {
+  most_recent = true
+  owners      = ["679593333241"] # CentOS
+
+  filter {
+    name   = "name"
+    values = ["CentOS 7.*x86_64*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
 # Local values for AMI selection based on kernel version
 locals {
   ami_map = {
@@ -118,6 +139,7 @@ locals {
     "ubuntu-22-04"       = data.aws_ami.ubuntu_22_04.id
     "ubuntu-20-04-hwe"   = data.aws_ami.ubuntu_20_04_hwe.id
     "debian-11"          = data.aws_ami.debian_11.id
+    "centos-7"           = data.aws_ami.centos_7.id
   }
   
   selected_ami = local.ami_map[var.ec2_kernel_version]
@@ -569,8 +591,14 @@ resource "aws_instance" "app_instance" {
 
     # Install AWS CLI first for SSM registration
     echo "Installing AWS CLI..."
-    yum install -y aws-cli
-    sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    # For CentOS 7, install Python 3 and pip first
+    yum install -y python3 python3-pip
+    pip3 install awscli --upgrade --user
+    
+    # Add aws to PATH
+    export PATH=$PATH:/root/.local/bin
+    echo 'export PATH=$PATH:/root/.local/bin' >> /etc/bashrc
+
     # Configure AWS CLI with the instance region
     echo "Configuring AWS CLI default region..."
     mkdir -p /root/.aws
@@ -581,11 +609,18 @@ resource "aws_instance" "app_instance" {
 
     # Install and start SSM Agent with special care
     echo "Installing and configuring SSM Agent..."
-    yum install -y amazon-ssm-agent
+    # Download and install SSM Agent for CentOS 7
+    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    
+    # Enable and start SSM Agent
+    systemctl enable amazon-ssm-agent
+    systemctl start amazon-ssm-agent
 
-    # Install Docker (Amazon Linux 2023 method)
+    # Install Docker (CentOS 7 method)
     echo "Installing Docker..."
-    yum install -y docker
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    yum install -y docker-ce docker-ce-cli containerd.io
 
     # Make sure Docker service is enabled and started with retries
     echo "Enabling and starting Docker service..."
@@ -605,12 +640,16 @@ resource "aws_instance" "app_instance" {
     docker --version || echo "Docker installation failed!"
     systemctl status docker || echo "Docker service is not running!"
 
-    # Add ec2-user to docker group
+    # Add ec2-user to docker group (create user if doesn't exist)
+    id -u ec2-user &>/dev/null || useradd ec2-user
     usermod -aG docker ec2-user
 
     # Install additional development tools
     echo "Installing development tools..."
     yum groupinstall -y "Development Tools"
+    
+    # Install other useful tools
+    yum install -y git wget unzip
 
     # Create a file to indicate script completion
     echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
@@ -651,7 +690,7 @@ resource "aws_instance" "jenkins_instance" {
               
               # Install SSM agent
               echo "Installing and configuring SSM agent..."
-              yum install -y amazon-ssm-agent
+              yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
               systemctl enable amazon-ssm-agent
               systemctl start amazon-ssm-agent
               
@@ -659,13 +698,15 @@ resource "aws_instance" "jenkins_instance" {
               echo "Installing utilities..."
               yum install -y git wget unzip jq
               
-              # Install Java
+              # Install Java (CentOS 7 - OpenJDK 11)
               echo "Installing Java..."
-              yum install -y java-11-amazon-corretto
+              yum install -y java-11-openjdk java-11-openjdk-devel
               
-              # Install Docker (Amazon Linux 2023 method)
+              # Install Docker (CentOS 7 method)
               echo "Installing Docker..."
-              yum install -y docker
+              yum install -y yum-utils device-mapper-persistent-data lvm2
+              yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+              yum install -y docker-ce docker-ce-cli containerd.io
               
               # Make sure Docker service is enabled and started with retries
               echo "Enabling and starting Docker service..."
@@ -689,7 +730,8 @@ resource "aws_instance" "jenkins_instance" {
               docker --version || echo "Docker installation failed!"
               systemctl status docker || echo "Docker service is not running!"
               
-              # Add ec2-user to docker group
+              # Add ec2-user to docker group (create user if doesn't exist)
+              id -u ec2-user &>/dev/null || useradd ec2-user
               usermod -aG docker ec2-user
               
               # Install Jenkins
@@ -783,7 +825,7 @@ resource "aws_instance" "jenkins_instance" {
               chmod 666 /var/log/xdr_install.log
               
               # Install dependencies that might be needed for XDR
-              yum install -y selinux-policy-devel.noarch
+              yum install -y selinux-policy-devel
               
               echo "Jenkins installation and configuration completed!"
               EOF

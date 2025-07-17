@@ -47,9 +47,9 @@ variable "common_tags" {
 }
 
 variable "ec2_kernel_version" {
-  description = "Kernel version preference for EC2 instances. Options: 'amazon-linux-2' (kernel 4.14), 'amazon-linux-2023' (kernel 6.1+), 'ubuntu-22-04' (kernel 5.15+), 'ubuntu-20-04-hwe' (kernel 5.13+), 'debian-11' (kernel 5.10)"
+  description = "Kernel version preference for EC2 instances. Options: 'amazon-linux-2' (kernel 4.14), 'amazon-linux-2023' (kernel 6.1+), 'ubuntu-22-04' (kernel 5.15+), 'ubuntu-20-04-hwe' (kernel 5.13+), 'debian-11' (kernel 5.10), 'centos-7' (kernel 3.10 - latest stable)"
   type        = string
-  default     = "amazon-linux-2023"
+  default     = "centos-7"
   
   validation {
     condition = contains([
@@ -57,8 +57,9 @@ variable "ec2_kernel_version" {
       "amazon-linux-2023",
       "ubuntu-22-04",
       "ubuntu-20-04-hwe",
-      "debian-11"
+      "debian-11",
+      "centos-7"
     ], var.ec2_kernel_version)
-    error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11."
+    error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11, centos-7."
   }
 } 

@@ -47,9 +47,23 @@ This guide explains how to configure EC2 instances with Linux kernel version 5.1
   - Requires manual kernel upgrade
   - Limited AWS-specific optimizations
 
+### 5. CentOS 7 (Latest Stable)
+- **Kernel Version**: 3.10 (stable, production-ready)
+- **AMI Data Source**: `data.aws_ami.centos_7`
+- **Pros**:
+  - Enterprise-grade stability
+  - Long-term support until 2024
+  - Wide compatibility with enterprise software
+  - SELinux enabled by default
+  - Large community support
+- **Cons**:
+  - Older kernel version (3.10)
+  - End of life approaching (June 2024)
+  - Requires manual installation of newer packages
+
 ## Current Configuration
 
-The Terraform configuration is currently set to use **Amazon Linux 2023** for both the application and Jenkins instances. This provides kernel 6.1+, which exceeds the 5.13 requirement.
+The Terraform configuration is currently set to use **CentOS 7** for both the application and Jenkins instances. This provides a stable, enterprise-grade operating system with proven reliability.
 
 ## How to Switch AMIs
 
@@ -71,6 +85,12 @@ resource "aws_instance" "app_instance" {
 # For Debian 11
 resource "aws_instance" "app_instance" {
   ami = data.aws_ami.debian_11.id
+  # ... rest of configuration
+}
+
+# For CentOS 7
+resource "aws_instance" "app_instance" {
+  ami = data.aws_ami.centos_7.id
   # ... rest of configuration
 }
 ```
@@ -104,17 +124,29 @@ systemctl enable docker
 systemctl start docker
 ```
 
+**CentOS 7:**
+```bash
+# Install Docker CE
+yum install -y yum-utils device-mapper-persistent-data lvm2
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce docker-ce-cli containerd.io
+systemctl enable docker
+systemctl start docker
+```
+
 ### 2. Package Names
 
 Package names may differ between distributions:
 - Amazon Linux: `amazon-ssm-agent`
 - Ubuntu/Debian: `amazon-ssm-agent` (requires manual installation)
+- CentOS 7: Install via RPM: `yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm`
 
 ### 3. Java Installation
 
 - Amazon Linux 2023: `java-11-amazon-corretto`
 - Ubuntu: `openjdk-11-jdk`
 - Debian: `openjdk-11-jdk`
+- CentOS 7: `java-11-openjdk java-11-openjdk-devel`
 
 ### 4. AWS Tools
 
@@ -140,6 +172,7 @@ Expected outputs:
 - Ubuntu 22.04: `5.15.x` or higher
 - Ubuntu 20.04 HWE: `5.13.x` or higher
 - Debian 11: `5.10.x` (upgradeable)
+- CentOS 7: `3.10.x` (stable, production-ready)
 
 ## Upgrading Kernel on Debian 11
 
@@ -162,6 +195,7 @@ sudo reboot
 1. **Amazon Linux 2023** has SELinux enabled by default
 2. **Ubuntu** uses AppArmor for security
 3. **Debian** has minimal security frameworks by default
+4. **CentOS 7** has SELinux enabled by default (enforcing mode)
 
 Ensure your security configurations are compatible with your chosen distribution.
 
@@ -187,4 +221,4 @@ If you need to rollback to Amazon Linux 2 (kernel 4.14):
 1. Change `ami = data.aws_ami.amazon_linux_2023.id` back to `ami = data.aws_ami.amazon_linux_2.id`
 2. Restore the original user_data scripts
 3. Run `terraform plan` to verify changes
-4. Run `terraform apply` to deploy 
+4. Run `terraform apply` to deploy
