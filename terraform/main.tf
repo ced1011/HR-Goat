@@ -230,6 +230,14 @@ resource "aws_security_group" "app_sg" {
   })
 
   ingress {
+    description = "SSH from anywhere (for troubleshooting)"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     description = "HTTP from anywhere"
     from_port   = 80
     to_port     = 80
@@ -564,6 +572,7 @@ resource "aws_instance" "app_instance" {
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   subnet_id     = aws_subnet.public_a.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  key_name      = var.key_name != "" ? var.key_name : null
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -628,12 +637,46 @@ resource "aws_instance" "app_instance" {
 
     # Install and start SSM Agent with special care
     echo "Installing and configuring SSM Agent..."
-    # Download and install SSM Agent for CentOS 7
+    # For CentOS Stream 9, we need to ensure proper installation
+    
+    # First, clean any existing installation
+    yum remove -y amazon-ssm-agent 2>/dev/null || true
+    
+    # Install dependencies
+    yum install -y systemd
+    
+    # Download and install SSM Agent for CentOS/RHEL
+    cd /tmp
     yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
     
-    # Enable and start SSM Agent
+    # Create necessary directories
+    mkdir -p /var/lib/amazon/ssm
+    
+    # Enable and start SSM Agent with retries
+    systemctl daemon-reload
     systemctl enable amazon-ssm-agent
-    systemctl start amazon-ssm-agent
+    
+    # Start with retries
+    for i in {1..5}; do
+      echo "Attempt $i to start SSM Agent..."
+      systemctl start amazon-ssm-agent && break || {
+        echo "Start attempt $i failed, waiting and trying again..."
+        sleep 10
+      }
+    done
+    
+    # Verify SSM Agent status
+    echo "SSM Agent status:"
+    systemctl status amazon-ssm-agent --no-pager || echo "SSM Agent service status check failed"
+    
+    # Check if SSM Agent is running
+    if systemctl is-active --quiet amazon-ssm-agent; then
+        echo "✓ SSM Agent is running successfully"
+    else
+        echo "✗ SSM Agent failed to start"
+        # Try alternative start method
+        /usr/bin/amazon-ssm-agent &
+    fi
 
     # Install Docker (CentOS 7 method)
     echo "Installing Docker..."

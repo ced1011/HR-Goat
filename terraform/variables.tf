@@ -62,4 +62,10 @@ variable "ec2_kernel_version" {
     ], var.ec2_kernel_version)
     error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11, centos-7."
   }
+}
+
+variable "key_name" {
+  description = "Name of the SSH key pair for EC2 access (optional, for troubleshooting)"
+  type        = string
+  default     = ""
 } 
