@@ -602,25 +602,36 @@ resource "aws_instance" "app_instance" {
 
     # Update system packages
     echo "Updating system packages..."
-    apt-get update -y
-    apt-get install -y gnupg
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Retry apt-get update in case of lock issues
+    for i in {1..5}; do
+      if apt-get update -y; then
+        break
+      fi
+      echo "apt-get update failed, waiting for lock release... attempt $i/5"
+      sleep 10
+    done
+    
+    apt-get install -y gnupg unzip curl
 
     # Install AWS CLI v2 system-wide
     echo "Installing AWS CLI v2..."
+    cd /tmp
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
+    unzip -q awscliv2.zip
     ./aws/install
     rm -rf awscliv2.zip aws/
     
     # Create symlink for AWS CLI
-    ln -s /usr/local/bin/aws /usr/bin/aws
-    
-    # Also ensure docker commands are in PATH
-    echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
-    chmod +x /etc/profile.d/docker.sh
+    ln -sf /usr/local/bin/aws /usr/bin/aws
     
     # Verify AWS CLI installation
-    echo "AWS CLI version: $(aws --version)"
+    if ! aws --version; then
+      echo "ERROR: AWS CLI installation failed!"
+      exit 1
+    fi
+    echo "AWS CLI installed successfully: $(aws --version)"
 
     # Configure AWS CLI with the instance region
     echo "Configuring AWS CLI default region..."
@@ -644,19 +655,21 @@ resource "aws_instance" "app_instance" {
 
     # Install and start SSM Agent
     echo "Installing and configuring SSM Agent..."
-    # Use DEBIAN_FRONTEND=noninteractive to avoid any prompts
-    export DEBIAN_FRONTEND=noninteractive
     # The snap might not be available immediately after boot. Retry a few times.
     for i in {1..5}; do
-      apt-get install -y snapd && break
-      echo "snapd installation failed, retrying..."
+      if apt-get install -y snapd; then
+        break
+      fi
+      echo "snapd installation failed, retrying... attempt $i/5"
       sleep 10
     done
 
     # Retry snap command
     for i in {1..5}; do
-      snap install amazon-ssm-agent --classic && break
-      echo "SSM agent snap installation failed, retrying..."
+      if snap install amazon-ssm-agent --classic; then
+        break
+      fi
+      echo "SSM agent snap installation failed, retrying... attempt $i/5"
       sleep 10
     done
 
@@ -675,34 +688,61 @@ resource "aws_instance" "app_instance" {
       sleep 10
     done
 
-    # Final status check
-    if ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
-        echo "✗ SSM Agent failed to start after multiple attempts."
-        # Optionally tail logs for debugging
-        journalctl -u snap.amazon-ssm-agent.amazon-ssm-agent.service | tail -n 50
-        exit 1 # Exit with an error if it fails to start
-    fi
-
-    echo "SSM Agent successfully installed and running."
-
     # Install Docker
     echo "Installing Docker..."
-    apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+    apt-get install -y apt-transport-https ca-certificates software-properties-common
+    
+    # Add Docker's official GPG key
     mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    for i in {1..3}; do
+      if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+        break
+      fi
+      echo "Failed to download Docker GPG key, retrying... attempt $i/3"
+      sleep 5
+    done
+    
+    # Add Docker repository
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Update package index with Docker packages
     apt-get update -y
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    
+    # Install Docker
+    for i in {1..3}; do
+      if apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+        break
+      fi
+      echo "Docker installation failed, retrying... attempt $i/3"
+      sleep 10
+    done
 
     # Make sure Docker service is enabled and started
     echo "Enabling and starting Docker service..."
     systemctl enable docker
     systemctl start docker
+    
+    # Wait for Docker to be fully ready
+    for i in {1..10}; do
+      if docker version >/dev/null 2>&1; then
+        echo "✓ Docker is ready."
+        break
+      fi
+      echo "Waiting for Docker daemon... attempt $i/10"
+      sleep 5
+    done
 
     # Verify Docker is installed and running
-    echo "Verifying Docker installation..."
-    docker --version || echo "Docker installation failed!"
-    systemctl status docker || echo "Docker service is not running!"
+    if ! docker --version; then
+      echo "ERROR: Docker installation failed!"
+      exit 1
+    fi
+    echo "Docker installed successfully: $(docker --version)"
+    
+    if ! systemctl is-active --quiet docker; then
+      echo "ERROR: Docker service is not running!"
+      exit 1
+    fi
 
     # Add ubuntu user to docker group
     usermod -aG docker ubuntu
@@ -713,33 +753,30 @@ resource "aws_instance" "app_instance" {
         echo "Added ssm-user to docker group"
     fi
 
-    # Ensure Docker binaries are accessible
-    if [ -f /usr/bin/docker ]; then
-        echo "Docker binary found at /usr/bin/docker"
-    else
-        echo "Creating Docker symlinks..."
-        ln -sf /usr/bin/docker /usr/local/bin/docker || true
-    fi
+    # Also ensure docker commands are in PATH
+    echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+    chmod +x /etc/profile.d/docker.sh
 
     # Install additional development tools
     echo "Installing development tools..."
-    apt-get install -y build-essential
-    
-    # Install other useful tools
-    apt-get install -y git wget unzip
+    apt-get install -y build-essential git wget
 
     # Final verification
-    echo "=== Final System Status ===" >> /tmp/user-data-complete.txt
-    echo "Docker version: $(docker --version 2>&1)" >> /tmp/user-data-complete.txt
-    echo "AWS CLI version: $(aws --version 2>&1)" >> /tmp/user-data-complete.txt
-    echo "Docker service: $(systemctl is-active docker)" >> /tmp/user-data-complete.txt
-    echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" >> /tmp/user-data-complete.txt
+    echo "=== Final System Status ===" | tee /tmp/user-data-complete.txt
+    echo "Docker version: $(docker --version 2>&1)" | tee -a /tmp/user-data-complete.txt
+    echo "AWS CLI version: $(aws --version 2>&1)" | tee -a /tmp/user-data-complete.txt
+    echo "Docker service: $(systemctl is-active docker)" | tee -a /tmp/user-data-complete.txt
+    echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" | tee -a /tmp/user-data-complete.txt
+    echo "Script completed at: $(date)" | tee -a /tmp/user-data-complete.txt
     
-    # Create a marker file for deployment readiness
-    touch /tmp/deployment-ready
-
-    # Create a file to indicate script completion
-    echo "User data script execution completed successfully at $(date)!" >> /tmp/user-data-complete.txt
+    # Only create deployment-ready marker if everything is successful
+    if docker --version && aws --version && systemctl is-active --quiet docker; then
+      touch /tmp/deployment-ready
+      echo "✅ All tools installed successfully, instance is deployment-ready!" | tee -a /tmp/user-data-complete.txt
+    else
+      echo "❌ Some tools failed to install properly!" | tee -a /tmp/user-data-complete.txt
+      exit 1
+    fi
   EOF
 
   root_block_device {
@@ -825,20 +862,21 @@ resource "aws_instance" "jenkins_instance" {
               
               # Install AWS CLI v2 system-wide
               echo "Installing AWS CLI v2..."
+              cd /tmp
               curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip awscliv2.zip
+              unzip -q awscliv2.zip
               ./aws/install
               rm -rf awscliv2.zip aws/
               
               # Create symlink for AWS CLI
-              ln -s /usr/local/bin/aws /usr/bin/aws
-              
-              # Also ensure docker commands are in PATH
-              echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
-              chmod +x /etc/profile.d/docker.sh
+              ln -sf /usr/local/bin/aws /usr/bin/aws
               
               # Verify AWS CLI installation
-              echo "AWS CLI version: $(aws --version)"
+              if ! aws --version; then
+                echo "ERROR: AWS CLI installation failed!"
+                exit 1
+              fi
+              echo "AWS CLI installed successfully: $(aws --version)"
               
               # Install Java (OpenJDK 11)
               echo "Installing Java..."
@@ -846,22 +884,57 @@ resource "aws_instance" "jenkins_instance" {
               
               # Install Docker
               echo "Installing Docker..."
-              apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+              apt-get install -y apt-transport-https ca-certificates software-properties-common
+              
+              # Add Docker's official GPG key with retries
               mkdir -p /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              for i in {1..3}; do
+                if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+                  break
+                fi
+                echo "Failed to download Docker GPG key, retrying... attempt $i/3"
+                sleep 5
+              done
+              
+              # Add Docker repository
               echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              
+              # Update and install Docker with retries
               apt-get update -y
-              apt-get install -y docker-ce docker-ce-cli containerd.io
+              for i in {1..3}; do
+                if apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+                  break
+                fi
+                echo "Docker installation failed, retrying... attempt $i/3"
+                sleep 10
+              done
               
               # Make sure Docker service is enabled and started
               echo "Enabling and starting Docker service..."
               systemctl enable docker
               systemctl start docker
               
+              # Wait for Docker to be fully ready
+              for i in {1..10}; do
+                if docker version >/dev/null 2>&1; then
+                  echo "✓ Docker is ready."
+                  break
+                fi
+                echo "Waiting for Docker daemon... attempt $i/10"
+                sleep 5
+              done
+              
               # Verify Docker is installed and running
-              echo "Verifying Docker installation..."
-              docker --version || echo "Docker installation failed!"
-              systemctl status docker || echo "Docker service is not running!"
+              if ! docker --version; then
+                echo "ERROR: Docker installation failed!"
+                exit 1
+              fi
+              echo "Docker installed successfully: $(docker --version)"
+              
+              if ! systemctl is-active --quiet docker; then
+                echo "ERROR: Docker service is not running!"
+                exit 1
+              fi
               
               # Add ubuntu user to docker group
               usermod -aG docker ubuntu
@@ -872,13 +945,9 @@ resource "aws_instance" "jenkins_instance" {
                   echo "Added ssm-user to docker group"
               fi
               
-              # Ensure Docker binaries are accessible
-              if [ -f /usr/bin/docker ]; then
-                echo "Docker binary found at /usr/bin/docker"
-              else
-                echo "Creating Docker symlinks..."
-                ln -sf /usr/bin/docker /usr/local/bin/docker || true
-              fi
+              # Also ensure docker commands are in PATH
+              echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+              chmod +x /etc/profile.d/docker.sh
               
               # Install Jenkins
               echo "Installing Jenkins..."
