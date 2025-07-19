@@ -637,19 +637,46 @@ resource "aws_instance" "app_instance" {
 
     # Install and start SSM Agent
     echo "Installing and configuring SSM Agent..."
-    snap install amazon-ssm-agent --classic
+    # Use DEBIAN_FRONTEND=noninteractive to avoid any prompts
+    export DEBIAN_FRONTEND=noninteractive
+    # The snap might not be available immediately after boot. Retry a few times.
+    for i in {1..5}; do
+      apt-get install -y snapd && break
+      echo "snapd installation failed, retrying..."
+      sleep 10
+    done
+
+    # Retry snap command
+    for i in {1..5}; do
+      snap install amazon-ssm-agent --classic && break
+      echo "SSM agent snap installation failed, retrying..."
+      sleep 10
+    done
+
+    # Enable and start the agent
+    systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
     systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-    
-    # Verify SSM Agent status
-    echo "SSM Agent status:"
-    systemctl status snap.amazon-ssm-agent.amazon-ssm-agent.service --no-pager || echo "SSM Agent service status check failed"
-    
-    # Check if SSM Agent is running
-    if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
-        echo "✓ SSM Agent is running successfully"
-    else
-        echo "✗ SSM Agent failed to start"
+
+    # Wait for agent to be active
+    echo "Waiting for SSM Agent to become active..."
+    for i in {1..10}; do
+      if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+        echo "✓ SSM Agent is active."
+        break
+      fi
+      echo "Waiting for SSM agent... attempt $i/10"
+      sleep 10
+    done
+
+    # Final status check
+    if ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+        echo "✗ SSM Agent failed to start after multiple attempts."
+        # Optionally tail logs for debugging
+        journalctl -u snap.amazon-ssm-agent.amazon-ssm-agent.service | tail -n 50
+        exit 1 # Exit with an error if it fails to start
     fi
+
+    echo "SSM Agent successfully installed and running."
 
     # Install Docker
     echo "Installing Docker..."
@@ -723,10 +750,48 @@ resource "aws_instance" "jenkins_instance" {
               echo "Updating system packages..."
               apt-get update -y
               
-              # Install SSM agent
-              echo "Installing and configuring SSM agent..."
-              snap install amazon-ssm-agent --classic
+              # Install and start SSM Agent
+              echo "Installing and configuring SSM Agent..."
+              # Use DEBIAN_FRONTEND=noninteractive to avoid any prompts
+              export DEBIAN_FRONTEND=noninteractive
+              # The snap might not be available immediately after boot. Retry a few times.
+              for i in {1..5}; do
+                apt-get install -y snapd && break
+                echo "snapd installation failed, retrying..."
+                sleep 10
+              done
+
+              # Retry snap command
+              for i in {1..5}; do
+                snap install amazon-ssm-agent --classic && break
+                echo "SSM agent snap installation failed, retrying..."
+                sleep 10
+              done
+
+              # Enable and start the agent
+              systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
               systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+              # Wait for agent to be active
+              echo "Waiting for SSM Agent to become active..."
+              for i in {1..10}; do
+                if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+                  echo "✓ SSM Agent is active."
+                  break
+                fi
+                echo "Waiting for SSM agent... attempt $i/10"
+                sleep 10
+              done
+
+              # Final status check
+              if ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+                  echo "✗ SSM Agent failed to start after multiple attempts."
+                  # Optionally tail logs for debugging
+                  journalctl -u snap.amazon-ssm-agent.amazon-ssm-agent.service | tail -n 50
+                  exit 1 # Exit with an error if it fails to start
+              fi
+              
+              echo "SSM Agent successfully installed and running."
               
               # Install useful utilities
               echo "Installing utilities..."
