@@ -603,14 +603,17 @@ resource "aws_instance" "app_instance" {
     # Update system packages
     echo "Updating system packages..."
     apt-get update -y
+    apt-get install -y gnupg
 
     # Install AWS CLI v2 system-wide
     echo "Installing AWS CLI v2..."
-    apt-get install -y unzip curl
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip awscliv2.zip
     ./aws/install
     rm -rf awscliv2.zip aws/
+    
+    # Create symlink for AWS CLI
+    ln -s /usr/local/bin/aws /usr/bin/aws
     
     # Verify AWS CLI installation
     echo "AWS CLI version: $(aws --version)"
@@ -707,12 +710,6 @@ resource "aws_instance" "app_instance" {
     # Install other useful tools
     apt-get install -y git wget unzip
 
-    # Download and install Cortex XDR agent
-    echo "Installing Cortex XDR agent..."
-    wget "https://xsoarpanw.blob.core.windows.net/script-library/Cortex-XDR-Installer.sh" -O /tmp/Cortex-XDR-Installer.sh
-    chmod +x /tmp/Cortex-XDR-Installer.sh
-    /tmp/Cortex-XDR-Installer.sh
-
     # Create a file to indicate script completion
     echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
   EOF
@@ -749,6 +746,7 @@ resource "aws_instance" "jenkins_instance" {
               # Update system
               echo "Updating system packages..."
               apt-get update -y
+              apt-get install -y gnupg
               
               # Install and start SSM Agent
               echo "Installing and configuring SSM Agent..."
@@ -803,6 +801,9 @@ resource "aws_instance" "jenkins_instance" {
               unzip awscliv2.zip
               ./aws/install
               rm -rf awscliv2.zip aws/
+              
+              # Create symlink for AWS CLI
+              ln -s /usr/local/bin/aws /usr/bin/aws
               
               # Verify AWS CLI installation
               echo "AWS CLI version: $(aws --version)"
@@ -923,12 +924,6 @@ resource "aws_instance" "jenkins_instance" {
               mkdir -p /var/log
               touch /var/log/xdr_install.log
               chmod 666 /var/log/xdr_install.log
-              
-              # Download and install Cortex XDR agent
-              echo "Installing Cortex XDR agent..."
-              wget "https://xsoarpanw.blob.core.windows.net/script-library/Cortex-XDR-Installer.sh" -O /tmp/Cortex-XDR-Installer.sh
-              chmod +x /tmp/Cortex-XDR-Installer.sh
-              /tmp/Cortex-XDR-Installer.sh
               
               echo "Jenkins installation and configuration completed!"
               EOF

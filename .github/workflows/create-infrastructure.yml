@@ -525,7 +525,30 @@ jobs:
                 echo '# Log file for installation' >> xdr_install.sh
                 echo 'LOG_FILE="/var/log/xdr_install.log"' >> xdr_install.sh
                 echo '' >> xdr_install.sh
-                echo 'yum install selinux-policy-devel.noarch -y' >> xdr_install.sh
+                echo '# Detect OS and install dependencies accordingly' >> xdr_install.sh
+                echo 'if [ -f /etc/os-release ]; then' >> xdr_install.sh
+                echo '  . /etc/os-release' >> xdr_install.sh
+                echo '  OS=$ID' >> xdr_install.sh
+                echo 'elif [ -f /etc/redhat-release ]; then' >> xdr_install.sh
+                echo '  OS="centos"' >> xdr_install.sh
+                echo 'else' >> xdr_install.sh
+                echo '  OS=$(uname -s)' >> xdr_install.sh
+                echo 'fi' >> xdr_install.sh
+                echo '' >> xdr_install.sh
+                echo '# Install OS-specific dependencies' >> xdr_install.sh
+                echo 'case $OS in' >> xdr_install.sh
+                echo '  ubuntu|debian)' >> xdr_install.sh
+                echo '    log "Detected Ubuntu/Debian system"' >> xdr_install.sh
+                echo '    # Ubuntu doesnt need selinux-policy-devel' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo '  centos|rhel|fedora)' >> xdr_install.sh
+                echo '    log "Detected CentOS/RHEL/Fedora system"' >> xdr_install.sh
+                echo '    yum install selinux-policy-devel.noarch -y' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo '  *)' >> xdr_install.sh
+                echo '    log "Unknown OS: $OS"' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo 'esac' >> xdr_install.sh
                 echo '' >> xdr_install.sh
                 echo '# Function for logging' >> xdr_install.sh
                 echo 'log() {' >> xdr_install.sh
