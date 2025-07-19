@@ -434,7 +434,7 @@ jobs:
           --output text
         
         # Create commands JSON string for unified server
-        COMMANDS_JSON='["bash -c \"export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\$PATH && docker stop hrportal || true && docker rm hrportal || true && aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"' && docker pull '"${{ steps.build-image.outputs.image }}"' && docker run -d --name hrportal -p 80:8080 --add-host=metadata.ec2.internal:127.0.0.1 --add-host=169.254.169.254:127.0.0.1 -e DB_HOST=\\\"'"$DB_HOST"'\\\" -e DB_USER=\\\"'"${{ env.RDS_USER }}"'\\\" -e DB_PASSWORD=\\\"'"${{ env.RDS_PASSWORD }}"'\\\" -e DB_NAME=\\\"'"${{ env.RDS_DATABASE }}"'\\\" -e PORT=\\\"8080\\\" --privileged -e VITE_BASE_URL=\\\"http://localhost\\\" '"${{ steps.build-image.outputs.image }}"' && docker ps | grep hrportal\""]'
+        COMMANDS_JSON='["bash -c \"export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\$PATH && docker stop hrportal || true && docker rm hrportal || true && aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"' && docker pull '"${{ steps.build-image.outputs.image }}"' && docker run -d --name hrportal -p 80:8080 -e DB_HOST=\\\"'"$DB_HOST"'\\\" -e DB_USER=\\\"'"${{ env.RDS_USER }}"'\\\" -e DB_PASSWORD=\\\"'"${{ env.RDS_PASSWORD }}"'\\\" -e DB_NAME=\\\"'"${{ env.RDS_DATABASE }}"'\\\" -e PORT=\\\"8080\\\" --privileged -e VITE_BASE_URL=\\\"http://localhost\\\" '"${{ steps.build-image.outputs.image }}"' && docker ps | grep hrportal\""]'
         
         echo "Using commands: $COMMANDS_JSON"
         
