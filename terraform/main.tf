@@ -615,6 +615,10 @@ resource "aws_instance" "app_instance" {
     # Create symlink for AWS CLI
     ln -s /usr/local/bin/aws /usr/bin/aws
     
+    # Also ensure docker commands are in PATH
+    echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+    chmod +x /etc/profile.d/docker.sh
+    
     # Verify AWS CLI installation
     echo "AWS CLI version: $(aws --version)"
 
@@ -702,6 +706,20 @@ resource "aws_instance" "app_instance" {
 
     # Add ubuntu user to docker group
     usermod -aG docker ubuntu
+    
+    # Also add ssm-user to docker group if it exists
+    if id "ssm-user" &>/dev/null; then
+        usermod -aG docker ssm-user
+        echo "Added ssm-user to docker group"
+    fi
+
+    # Ensure Docker binaries are accessible
+    if [ -f /usr/bin/docker ]; then
+        echo "Docker binary found at /usr/bin/docker"
+    else
+        echo "Creating Docker symlinks..."
+        ln -sf /usr/bin/docker /usr/local/bin/docker || true
+    fi
 
     # Install additional development tools
     echo "Installing development tools..."
@@ -710,8 +728,18 @@ resource "aws_instance" "app_instance" {
     # Install other useful tools
     apt-get install -y git wget unzip
 
+    # Final verification
+    echo "=== Final System Status ===" >> /tmp/user-data-complete.txt
+    echo "Docker version: $(docker --version 2>&1)" >> /tmp/user-data-complete.txt
+    echo "AWS CLI version: $(aws --version 2>&1)" >> /tmp/user-data-complete.txt
+    echo "Docker service: $(systemctl is-active docker)" >> /tmp/user-data-complete.txt
+    echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" >> /tmp/user-data-complete.txt
+    
+    # Create a marker file for deployment readiness
+    touch /tmp/deployment-ready
+
     # Create a file to indicate script completion
-    echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
+    echo "User data script execution completed successfully at $(date)!" >> /tmp/user-data-complete.txt
   EOF
 
   root_block_device {
@@ -805,6 +833,10 @@ resource "aws_instance" "jenkins_instance" {
               # Create symlink for AWS CLI
               ln -s /usr/local/bin/aws /usr/bin/aws
               
+              # Also ensure docker commands are in PATH
+              echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+              chmod +x /etc/profile.d/docker.sh
+              
               # Verify AWS CLI installation
               echo "AWS CLI version: $(aws --version)"
               
@@ -833,6 +865,20 @@ resource "aws_instance" "jenkins_instance" {
               
               # Add ubuntu user to docker group
               usermod -aG docker ubuntu
+              
+              # Also add ssm-user to docker group if it exists
+              if id "ssm-user" &>/dev/null; then
+                  usermod -aG docker ssm-user
+                  echo "Added ssm-user to docker group"
+              fi
+              
+              # Ensure Docker binaries are accessible
+              if [ -f /usr/bin/docker ]; then
+                echo "Docker binary found at /usr/bin/docker"
+              else
+                echo "Creating Docker symlinks..."
+                ln -sf /usr/bin/docker /usr/local/bin/docker || true
+              fi
               
               # Install Jenkins
               echo "Installing Jenkins..."
@@ -924,6 +970,16 @@ resource "aws_instance" "jenkins_instance" {
               mkdir -p /var/log
               touch /var/log/xdr_install.log
               chmod 666 /var/log/xdr_install.log
+              
+              # Final verification
+              echo "=== Final System Status ===" >> /tmp/user-data-complete.txt
+              echo "Docker version: $(docker --version 2>&1)" >> /tmp/user-data-complete.txt
+              echo "AWS CLI version: $(aws --version 2>&1)" >> /tmp/user-data-complete.txt
+              echo "Docker service: $(systemctl is-active docker)" >> /tmp/user-data-complete.txt
+              echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" >> /tmp/user-data-complete.txt
+              
+              # Create a marker file for deployment readiness
+              touch /tmp/deployment-ready
               
               echo "Jenkins installation and configuration completed!"
               EOF
