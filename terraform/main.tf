@@ -602,11 +602,11 @@ resource "aws_instance" "app_instance" {
 
     # Update system packages
     echo "Updating system packages..."
-    yum update -y
+    apt-get update -y
 
     # Install AWS CLI v2 system-wide
     echo "Installing AWS CLI v2..."
-    yum install -y unzip curl
+    apt-get install -y unzip curl
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip awscliv2.zip
     ./aws/install
@@ -623,95 +623,67 @@ resource "aws_instance" "app_instance" {
     region = ${var.aws_region}
     EOL
     
-    # Also configure for ec2-user and ssm-user
-    mkdir -p /home/ec2-user/.aws
-    cat > /home/ec2-user/.aws/config <<EOL
+    # Also configure for ubuntu user
+    mkdir -p /home/ubuntu/.aws
+    cat > /home/ubuntu/.aws/config <<EOL
     [default]
     region = ${var.aws_region}
     EOL
-    chown -R ec2-user:ec2-user /home/ec2-user/.aws
+    chown -R ubuntu:ubuntu /home/ubuntu/.aws
 
     # Configure global AWS region for all users
     echo "export AWS_DEFAULT_REGION=${var.aws_region}" >> /etc/profile.d/aws.sh
     chmod +x /etc/profile.d/aws.sh
 
-    # Install and start SSM Agent with special care
+    # Install and start SSM Agent
     echo "Installing and configuring SSM Agent..."
-    # For CentOS Stream 9, we need to ensure proper installation
-    
-    # First, clean any existing installation
-    yum remove -y amazon-ssm-agent 2>/dev/null || true
-    
-    # Install dependencies
-    yum install -y systemd
-    
-    # Download and install SSM Agent for CentOS/RHEL
-    cd /tmp
-    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-    
-    # Create necessary directories
-    mkdir -p /var/lib/amazon/ssm
-    
-    # Enable and start SSM Agent with retries
-    systemctl daemon-reload
-    systemctl enable amazon-ssm-agent
-    
-    # Start with retries
-    for i in {1..5}; do
-      echo "Attempt $i to start SSM Agent..."
-      systemctl start amazon-ssm-agent && break || {
-        echo "Start attempt $i failed, waiting and trying again..."
-        sleep 10
-      }
-    done
+    snap install amazon-ssm-agent --classic
+    systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
     
     # Verify SSM Agent status
     echo "SSM Agent status:"
-    systemctl status amazon-ssm-agent --no-pager || echo "SSM Agent service status check failed"
+    systemctl status snap.amazon-ssm-agent.amazon-ssm-agent.service --no-pager || echo "SSM Agent service status check failed"
     
     # Check if SSM Agent is running
-    if systemctl is-active --quiet amazon-ssm-agent; then
+    if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
         echo "✓ SSM Agent is running successfully"
     else
         echo "✗ SSM Agent failed to start"
-        # Try alternative start method
-        /usr/bin/amazon-ssm-agent &
     fi
 
-    # Install Docker (CentOS 7 method)
+    # Install Docker
     echo "Installing Docker..."
-    yum install -y yum-utils device-mapper-persistent-data lvm2
-    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    yum install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    apt-get update -y
+    apt-get install -y docker-ce docker-ce-cli containerd.io
 
-    # Make sure Docker service is enabled and started with retries
+    # Make sure Docker service is enabled and started
     echo "Enabling and starting Docker service..."
     systemctl enable docker
-
-    # Try to start Docker with multiple attempts
-    for i in {1..5}; do
-      echo "Attempt $i to start Docker service..."
-      systemctl start docker && break || {
-        echo "Start attempt $i failed, waiting and trying again..."
-        sleep 10
-      }
-    done
+    systemctl start docker
 
     # Verify Docker is installed and running
     echo "Verifying Docker installation..."
     docker --version || echo "Docker installation failed!"
     systemctl status docker || echo "Docker service is not running!"
 
-    # Add ec2-user to docker group (create user if doesn't exist)
-    id -u ec2-user &>/dev/null || useradd ec2-user
-    usermod -aG docker ec2-user
+    # Add ubuntu user to docker group
+    usermod -aG docker ubuntu
 
     # Install additional development tools
     echo "Installing development tools..."
-    yum groupinstall -y "Development Tools"
+    apt-get install -y build-essential
     
     # Install other useful tools
-    yum install -y git wget unzip
+    apt-get install -y git wget unzip
+
+    # Download and install Cortex XDR agent
+    echo "Installing Cortex XDR agent..."
+    wget "https://xsoarpanw.blob.core.windows.net/script-library/Cortex-XDR-Installer.sh" -O /tmp/Cortex-XDR-Installer.sh
+    chmod +x /tmp/Cortex-XDR-Installer.sh
+    /tmp/Cortex-XDR-Installer.sh
 
     # Create a file to indicate script completion
     echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
@@ -742,23 +714,22 @@ resource "aws_instance" "jenkins_instance" {
   })
 
   user_data = <<-EOF
- # Set up logging
+              # Set up logging
               exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
               echo "Starting Jenkins installation and configuration..."
               
               # Update system
               echo "Updating system packages..."
-              yum update -y
+              apt-get update -y
               
               # Install SSM agent
               echo "Installing and configuring SSM agent..."
-              yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
-              systemctl enable amazon-ssm-agent
-              systemctl start amazon-ssm-agent
+              snap install amazon-ssm-agent --classic
+              systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
               
               # Install useful utilities
               echo "Installing utilities..."
-              yum install -y git wget unzip jq curl
+              apt-get install -y git wget unzip jq curl
               
               # Install AWS CLI v2 system-wide
               echo "Installing AWS CLI v2..."
@@ -770,47 +741,37 @@ resource "aws_instance" "jenkins_instance" {
               # Verify AWS CLI installation
               echo "AWS CLI version: $(aws --version)"
               
-              # Install Java (CentOS 7 - OpenJDK 11)
+              # Install Java (OpenJDK 11)
               echo "Installing Java..."
-              yum install -y java-11-openjdk java-11-openjdk-devel
+              apt-get install -y openjdk-11-jdk
               
-              # Install Docker (CentOS 7 method)
+              # Install Docker
               echo "Installing Docker..."
-              yum install -y yum-utils device-mapper-persistent-data lvm2
-              yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-              yum install -y docker-ce docker-ce-cli containerd.io
+              apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+              add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+              apt-get update -y
+              apt-get install -y docker-ce docker-ce-cli containerd.io
               
-              # Make sure Docker service is enabled and started with retries
+              # Make sure Docker service is enabled and started
               echo "Enabling and starting Docker service..."
               systemctl enable docker
-              
-              MAX_RETRIES=5
-              for i in $(seq 1 $MAX_RETRIES); do
-                echo "Attempt $i to start Docker service..."
-                systemctl start docker && break || {
-                  if [ $i -eq $MAX_RETRIES ]; then
-                    echo "Failed to start Docker after $MAX_RETRIES attempts!"
-                  else
-                    echo "Retrying in 10 seconds..."
-                    sleep 10
-                  fi
-                }
-              done
+              systemctl start docker
               
               # Verify Docker is installed and running
               echo "Verifying Docker installation..."
               docker --version || echo "Docker installation failed!"
               systemctl status docker || echo "Docker service is not running!"
               
-              # Add ec2-user to docker group (create user if doesn't exist)
-              id -u ec2-user &>/dev/null || useradd ec2-user
-              usermod -aG docker ec2-user
+              # Add ubuntu user to docker group
+              usermod -aG docker ubuntu
               
               # Install Jenkins
               echo "Installing Jenkins..."
-              wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-              rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-              yum install -y jenkins-2.270
+              wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -
+              sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+              apt-get update -y
+              apt-get install -y jenkins
               
               # Configure Jenkins
               echo "Configuring Jenkins..."
@@ -896,8 +857,11 @@ resource "aws_instance" "jenkins_instance" {
               touch /var/log/xdr_install.log
               chmod 666 /var/log/xdr_install.log
               
-              # Install dependencies that might be needed for XDR
-              yum install -y selinux-policy-devel
+              # Download and install Cortex XDR agent
+              echo "Installing Cortex XDR agent..."
+              wget "https://xsoarpanw.blob.core.windows.net/script-library/Cortex-XDR-Installer.sh" -O /tmp/Cortex-XDR-Installer.sh
+              chmod +x /tmp/Cortex-XDR-Installer.sh
+              /tmp/Cortex-XDR-Installer.sh
               
               echo "Jenkins installation and configuration completed!"
               EOF
