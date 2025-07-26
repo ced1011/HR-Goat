@@ -809,21 +809,33 @@ resource "aws_instance" "jenkins_instance" {
               exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
               echo "Starting Jenkins installation and configuration..."
               
-              # CRITICAL: Install AWS CLI first before anything else
+              # CRITICAL: Install AWS CLI first using the exact commands provided
               echo "Installing AWS CLI v2 as first priority..."
-              cd /tmp
-              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip -q awscliv2.zip
+              apt-get update -y
+              apt-get install -y unzip
+              
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
               ./aws/install
+              
+              # Clean up installation files
               rm -rf awscliv2.zip aws/
               
               # Create symlinks for AWS CLI in all possible locations
               ln -sf /usr/local/bin/aws /usr/bin/aws
               ln -sf /usr/local/bin/aws /bin/aws
               
-              # Ensure AWS CLI is in PATH for all users
+              # Ensure AWS CLI is in PATH for all users including SSM
               echo 'export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"' >> /etc/profile.d/aws-cli.sh
               chmod +x /etc/profile.d/aws-cli.sh
+              
+              # Also add to /etc/environment for non-login shells
+              if ! grep -q "/usr/local/bin" /etc/environment; then
+                sed -i 's|PATH="\(.*\)"|PATH="/usr/local/bin:\1"|' /etc/environment
+              fi
+              
+              # Source the new PATH
+              export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
               
               # Verify AWS CLI installation
               if ! /usr/local/bin/aws --version; then
@@ -832,7 +844,7 @@ resource "aws_instance" "jenkins_instance" {
               fi
               echo "AWS CLI installed successfully: $(/usr/local/bin/aws --version)"
               
-              # Create AWS CLI ready marker BEFORE installing SSM agent
+              # Create AWS CLI ready marker
               touch /tmp/aws-cli-ready
               
               # Update system
