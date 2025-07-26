@@ -1,5 +1,6 @@
+## ⚠️ Security Advisory
+**WARNING**: This application contains deliberate security vulnerabilities. Deploy only in isolated, controlled environments. Never use in production or connect to sensitive systems.
 
-<<<<<<< HEAD
 ## About the Project
 HRGoat is an intentionally vulnerable HR management portal designed to demonstrate cloud security vulnerabilities in a controlled environment. It's a comprehensive training tool created for:
 - Security professionals practicing cloud-based exploitation
@@ -7,27 +8,6 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
 - Development teams studying secure coding
 - Organizations conducting security awareness training
 
-## ⚠️ Security Advisory
-**WARNING**: This application contains deliberate security vulnerabilities. Deploy only in isolated, controlled environments. Never use in production or connect to sensitive systems.
-
-## Project Structure
-```
-/
-├── src/               # Frontend application code (React)
-├── server/            # Backend server code (Node.js/Express)
-├── terraform/         # Infrastructure as Code for AWS deployment
-└── .github/workflows/ # CI/CD pipelines for automated deployment
-```
-
-## Features
-- Employee management (create, update, delete, bulk upload)
-- Document handling and storage
-- User authentication and authorization
-- Profile management
-- Calendar events
-- Payroll & benefits
-- Performance tracking
-- Notifications
 
 ## Deployment with GitHub Actions
 
@@ -52,47 +32,6 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
    - EC2 instance IP addresses
    - Jenkins server URL
 
-## Vulnerability Overview & Exploitation Guide
-
-### 1. SQL Injection
-**Location**: Employee search functionality
-**Impact**: Data exposure, potential database compromise
-
-### 2. Insecure Deserialization
-**Location**: Employee bulk upload feature
-**Impact**: Remote code execution on application container
-
-### 3. Container Escape
-**Location**: Docker container configuration
-**Impact**: Host system access from container
-
-### 4. Jenkins Exploitation
-**Location**: Jenkins instance (port 8080)
-**Impact**: CI/CD pipeline compromise
-
-### 5. Privilege Escalation
-**Location**: EC2 & Jenkins instances
-**Impact**: Full system compromise
-
-### 6. AWS IAM Privilege Escalation
-**Location**: EC2 instance roles
-**Impact**: AWS account compromise
-
-> For detailed exploitation steps and payloads, see [EXPLOITATION.md](EXPLOITATION.md)
-
-## Security Remediation
-1. SQL Injection: Implement parameterized queries
-2. Deserialization: Avoid user-controlled data deserialization
-3. Container Security: Remove privileged flag
-4. Network Segmentation: Implement proper VPC security
-5. Jenkins Security: Enforce strong authentication
-6. IAM Security: Apply least privilege principle
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Disclaimer
-This software is provided for educational purposes only. Unauthorized security testing is illegal. The author is not responsible for any misuse of this software.
 =======
 # 🎭 The Great Escape: From SQLi to Full AWS Takeover
 
