@@ -804,9 +804,36 @@ resource "aws_instance" "jenkins_instance" {
   })
 
   user_data = <<-EOF
+              #!/bin/bash
               # Set up logging
               exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
               echo "Starting Jenkins installation and configuration..."
+              
+              # CRITICAL: Install AWS CLI first before anything else
+              echo "Installing AWS CLI v2 as first priority..."
+              cd /tmp
+              curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q awscliv2.zip
+              ./aws/install
+              rm -rf awscliv2.zip aws/
+              
+              # Create symlinks for AWS CLI in all possible locations
+              ln -sf /usr/local/bin/aws /usr/bin/aws
+              ln -sf /usr/local/bin/aws /bin/aws
+              
+              # Ensure AWS CLI is in PATH for all users
+              echo 'export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"' >> /etc/profile.d/aws-cli.sh
+              chmod +x /etc/profile.d/aws-cli.sh
+              
+              # Verify AWS CLI installation
+              if ! /usr/local/bin/aws --version; then
+                echo "ERROR: AWS CLI installation failed!"
+                exit 1
+              fi
+              echo "AWS CLI installed successfully: $(/usr/local/bin/aws --version)"
+              
+              # Create AWS CLI ready marker BEFORE installing SSM agent
+              touch /tmp/aws-cli-ready
               
               # Update system
               echo "Updating system packages..."
@@ -856,27 +883,12 @@ resource "aws_instance" "jenkins_instance" {
               
               echo "SSM Agent successfully installed and running."
               
-              # Install useful utilities
+              # Install utilities
               echo "Installing utilities..."
               apt-get install -y git wget unzip jq curl
               
-              # Install AWS CLI v2 system-wide
-              echo "Installing AWS CLI v2..."
-              cd /tmp
-              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip -q awscliv2.zip
-              ./aws/install
-              rm -rf awscliv2.zip aws/
-              
-              # Create symlink for AWS CLI
-              ln -sf /usr/local/bin/aws /usr/bin/aws
-              
-              # Verify AWS CLI installation
-              if ! aws --version; then
-                echo "ERROR: AWS CLI installation failed!"
-                exit 1
-              fi
-              echo "AWS CLI installed successfully: $(aws --version)"
+              # AWS CLI is already installed at the beginning of the script
+              echo "AWS CLI already installed: $(aws --version)"
               
               # Install Java (OpenJDK 11)
               echo "Installing Java..."
