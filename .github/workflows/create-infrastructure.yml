@@ -769,58 +769,11 @@ jobs:
                   echo "App Instance ID: $APP_INSTANCE_ID"
                   echo "Jenkins Instance ID: $JENKINS_INSTANCE_ID"
                   
-                  # Add a delay to ensure instances have completed their user_data scripts
-                  echo "Waiting 2 minutes for instances to complete initialization..."
-                  sleep 120
-                  
                   # Install XDR on both instances
                   for INSTANCE_ID in "$APP_INSTANCE_ID" "$JENKINS_INSTANCE_ID"; do
                     # Skip if instance ID is empty
                     if [ -z "$INSTANCE_ID" ]; then
                       echo "::warning::Empty instance ID, skipping XDR installation for this instance"
-                      continue
-                    fi
-                    
-                    # Check if instance is ready (AWS CLI installed and user_data completed)
-                    echo "Checking if instance $INSTANCE_ID is ready for XDR installation..."
-                    READY_CHECK_CMD="command -v aws >/dev/null 2>&1 && [ -f /tmp/deployment-ready ] && echo 'READY' || echo 'NOT_READY'"
-                    
-                    # Try up to 10 times with 30 second intervals (5 minutes total)
-                    READY_ATTEMPTS=0
-                    MAX_READY_ATTEMPTS=10
-                    INSTANCE_READY=false
-                    
-                    while [ $READY_ATTEMPTS -lt $MAX_READY_ATTEMPTS ]; do
-                      READY_STATUS=$(aws ssm send-command \
-                        --instance-ids "$INSTANCE_ID" \
-                        --document-name "AWS-RunShellScript" \
-                        --parameters "commands=$READY_CHECK_CMD" \
-                        --query "Command.CommandId" \
-                        --output text 2>/dev/null || echo "FAILED")
-                      
-                      if [ "$READY_STATUS" != "FAILED" ]; then
-                        sleep 5  # Give command time to execute
-                        
-                        READY_OUTPUT=$(aws ssm get-command-invocation \
-                          --command-id "$READY_STATUS" \
-                          --instance-id "$INSTANCE_ID" \
-                          --query "StandardOutputContent" \
-                          --output text 2>/dev/null || echo "")
-                        
-                        if echo "$READY_OUTPUT" | grep -q "READY"; then
-                          echo "✅ Instance $INSTANCE_ID is ready for XDR installation"
-                          INSTANCE_READY=true
-                          break
-                        fi
-                      fi
-                      
-                      READY_ATTEMPTS=$((READY_ATTEMPTS + 1))
-                      echo "Instance $INSTANCE_ID not ready yet (attempt $READY_ATTEMPTS/$MAX_READY_ATTEMPTS). Waiting 30 seconds..."
-                      sleep 30
-                    done
-                    
-                    if [ "$INSTANCE_READY" = false ]; then
-                      echo "::warning::Instance $INSTANCE_ID is not ready after $MAX_READY_ATTEMPTS attempts. Skipping XDR installation."
                       continue
                     fi
                     
