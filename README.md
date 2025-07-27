@@ -8,6 +8,13 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
 - Development teams studying secure coding
 - Organizations conducting security awareness training
 
+---
+
+# 🎭 The Great Escape: From SQLi to Full AWS Takeover
+
+> This project is for educational and authorized security research purposes only. Unauthorized use of these techniques is illegal and unethical.
+
+This guide walks through a full attack lifecycle scenario from initial entry via SQL Injection to full AWS account takeover, including container escape, IAM privilege escalation, and persistence.
 
 ## Deployment with GitHub Actions
 
@@ -32,11 +39,27 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
    - EC2 instance IP addresses
    - Jenkins server URL
 
-=======
-# 🎭 The Great Escape: From SQLi to Full AWS Takeover
+---
 
-## ⚠️ Disclaimer
-> This project is for educational and authorized security research purposes only. Unauthorized use of these techniques is illegal and unethical.
+## 🧨 Vulnerability Overview
+
+1. **SQL Injection** – Employee search functionality can be exploited for unauthorized data access.
+2. **Insecure Deserialization** – Bulk upload feature leads to remote code execution.
+3. **Container Escape** – Poor container isolation allows attacker to pivot to EC2 host.
+4. **Jenkins Exploitation** – Publicly exposed CI/CD tool allows system-level compromise.
+5. **AWS IAM Privilege Escalation** – Misconfigured roles allow privilege chaining and admin policy attachment.
+
+---
+
+## 🔥 Exploitation Walkthrough
+
+*A detailed, step-by-step demonstration of exploiting these vulnerabilities is provided in the `docs/exploitation-walkthrough.md` file.* Screenshots, reverse shells, metadata token access, IAM abuse, and persistence techniques are covered thoroughly.
+
+---
+
+## Disclaimer
+This software is provided for educational purposes only. Unauthorized security testing is illegal. The author is not responsible for any misuse of this software.
+
 
 ## 🏴‍☠️ The Adventure Begins
 Once upon a time, in a land of misconfigured cloud environments, a daring security researcher set out on a quest to explore the depths of vulnerabilities. What started as a simple SQL injection led to an ultimate privilege escalation inside AWS. Let's follow the trail!
@@ -254,4 +277,3 @@ From a simple SQLi to full AWS environment control, we navigated through multipl
 ---
 
 💡 **For Defensive Countermeasures & Hardening Tips, see** `SECURITY.md` 🚧
->>>>>>> 0a0b584fe7b915f61e7a873a1b59c7a055d72ab9
