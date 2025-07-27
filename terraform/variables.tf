@@ -10,12 +10,6 @@ variable "project_name" {
   default     = "hrgoat"
 }
 
-variable "ec2_ami_id" {
-  description = "AMI ID for the EC2 instances"
-  type        = string
-  default     = "ami-0277155c3f0ab2930"
-}
-
 variable "ec2_instance_type" {
   description = "Instance type for the EC2 instances"
   type        = string
@@ -50,4 +44,28 @@ variable "common_tags" {
     Name = "DemoHRApp"
     Link = "https://github.com/SilentProcess87/cyber-lab-hr-simulator"
   }
+}
+
+variable "ec2_kernel_version" {
+  description = "Kernel version preference for EC2 instances. Options: 'amazon-linux-2' (kernel 4.14), 'amazon-linux-2023' (kernel 6.1+), 'ubuntu-22-04' (kernel 5.15+), 'ubuntu-20-04-hwe' (kernel 5.13+), 'debian-11' (kernel 5.10), 'centos-7' (CentOS Stream 9 - kernel 5.14+)"
+  type        = string
+  default     = "ubuntu-20-04-hwe"
+  
+  validation {
+    condition = contains([
+      "amazon-linux-2",
+      "amazon-linux-2023",
+      "ubuntu-22-04",
+      "ubuntu-20-04-hwe",
+      "debian-11",
+      "centos-7"
+    ], var.ec2_kernel_version)
+    error_message = "Invalid kernel version. Must be one of: amazon-linux-2, amazon-linux-2023, ubuntu-22-04, ubuntu-20-04-hwe, debian-11, centos-7."
+  }
+}
+
+variable "key_name" {
+  description = "Name of the SSH key pair for EC2 access (optional, for troubleshooting)"
+  type        = string
+  default     = ""
 } 

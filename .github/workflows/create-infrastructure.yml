@@ -2,9 +2,26 @@ name: Create Infrastructure and Deploy Application
 
 on:
   workflow_dispatch:
+    inputs:
+      aws_region:
+        description: 'AWS Region to deploy to'
+        required: true
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+          - us-west-1
+          - us-west-2
+          - eu-west-1
+          - eu-west-2
+          - eu-central-1
+          - ap-southeast-1
+          - ap-southeast-2
+          - ap-northeast-1
+        default: 'us-east-1'
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ${{ github.event.inputs.aws_region }}
   TF_STATE_BUCKET_PREFIX: "hrgoat-tfstate-do-not-delete"
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
@@ -35,7 +52,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: "us-east-1"
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
@@ -45,9 +62,9 @@ jobs:
     - name: Create unique S3 bucket name for Terraform state
       id: create_bucket
       run: |
-        # Generate unique bucket name with epoch timestamp
+        # Generate unique bucket name with epoch timestamp and region
         TIMESTAMP=$(date +%s)
-        BUCKET_NAME="${{ env.TF_STATE_BUCKET_PREFIX }}-${TIMESTAMP}"
+        BUCKET_NAME="${{ env.TF_STATE_BUCKET_PREFIX }}-${{ env.AWS_REGION }}-${TIMESTAMP}"
         echo "bucket_name=${BUCKET_NAME}" >> $GITHUB_OUTPUT
         echo "Using bucket name: ${BUCKET_NAME}"
 
@@ -55,14 +72,22 @@ jobs:
       run: |
         BUCKET_NAME="${{ steps.create_bucket.outputs.bucket_name }}"
         
-        aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
-        aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}
+        # For us-east-1, don't specify location constraint
+        if [ "${{ env.AWS_REGION }}" == "us-east-1" ]; then
+          aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
+          aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }}
+        else
+          aws s3api head-bucket --bucket ${BUCKET_NAME} 2>/dev/null || \
+          aws s3api create-bucket --bucket ${BUCKET_NAME} --region ${{ env.AWS_REGION }} \
+            --create-bucket-configuration LocationConstraint=${{ env.AWS_REGION }}
+        fi
         
         # Enable versioning
         aws s3api put-bucket-versioning --bucket ${BUCKET_NAME} --versioning-configuration Status=Enabled
         
         # Store bucket name in a file that will be stored in S3 for reference by destroy workflow
         echo "BUCKET_NAME=${BUCKET_NAME}" > bucket-name.txt
+        echo "REGION=${{ env.AWS_REGION }}" >> bucket-name.txt
         aws s3 cp bucket-name.txt s3://${BUCKET_NAME}/bucket-name.txt
 
     - name: Terraform Init
@@ -76,7 +101,7 @@ jobs:
     - name: Terraform Plan
       run: |
         cd terraform
-        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -out=tfplan
+        terraform plan -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -var="aws_region=${{ env.AWS_REGION }}" -out=tfplan
 
     - name: Terraform Apply
       run: |
@@ -241,8 +266,8 @@ jobs:
         FULL_ECR_REPOSITORY="${ECR_REGISTRY}/${{ env.ECR_REPOSITORY_NAME }}"
         echo "Full ECR Repository URL: ${FULL_ECR_REPOSITORY}"
         
-        # Build a docker container and push it to ECR
-        docker build -t ${FULL_ECR_REPOSITORY}:${{ github.sha }} .
+        # Build a docker container and push it to ECR using the unified Dockerfile
+        docker build -f Dockerfile.unified -t ${FULL_ECR_REPOSITORY}:${{ github.sha }} .
         docker push ${FULL_ECR_REPOSITORY}:${{ github.sha }}
         docker tag ${FULL_ECR_REPOSITORY}:${{ github.sha }} ${FULL_ECR_REPOSITORY}:latest
         docker push ${FULL_ECR_REPOSITORY}:latest
@@ -333,8 +358,83 @@ jobs:
         echo "RDS_USER: ${{ env.RDS_USER }}"
         echo "RDS_PASSWORD: ${{ env.RDS_PASSWORD }}"
         
-        # Create commands JSON string
-        COMMANDS_JSON='["docker stop hrportal || true", "docker rm hrportal || true", "aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"'", "docker pull '"${{ steps.build-image.outputs.image }}"'", "docker run -d --name hrportal -p 80:80 -p 5001:5001 --network-alias=nomdservice --add-host=metadata.ec2.internal:127.0.0.1 --add-host=169.254.169.254:127.0.0.1 -e DB_HOST=\"'"$DB_HOST"'\" -e DB_USER=\"'"${{ env.RDS_USER }}"'\" -e DB_PASSWORD=\"'"${{ env.RDS_PASSWORD }}"'\" -e DB_NAME=\"'"${{ env.RDS_DATABASE }}"'\" -e FRONTEND_PORT=\"80\" -e BACKEND_PORT=\"5002\" --privileged -e VITE_BASE_URL=\"http://localhost\" '"${{ steps.build-image.outputs.image }}"'", "docker ps | grep hrportal"]'
+        # Wait for instance to be fully ready
+        echo "Checking if instance is ready for deployment..."
+        MAX_WAIT=600  # 10 minutes (increased from 5)
+        WAIT_TIME=0
+        INSTANCE_READY=false
+        
+        while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+          # Check if Docker and AWS CLI are installed and ready
+          if aws ssm send-command \
+            --instance-ids ${{ env.APP_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["which docker && which aws && systemctl is-active docker && echo TOOLS_READY || echo TOOLS_NOT_READY"]' \
+            --query "Command.CommandId" \
+            --output text > /tmp/check_cmd_id 2>&1; then
+            
+            sleep 10  # Give more time for command to complete
+            CHECK_OUTPUT=$(aws ssm get-command-invocation \
+              --command-id "$(cat /tmp/check_cmd_id)" \
+              --instance-id ${{ env.APP_INSTANCE_ID }} \
+              --query "StandardOutputContent" \
+              --output text 2>/dev/null || echo "")
+            
+            if [[ "$CHECK_OUTPUT" == *"TOOLS_READY"* ]]; then
+              echo "✅ Instance is ready for deployment! Docker and AWS CLI are installed."
+              INSTANCE_READY=true
+              break
+            else
+              echo "Tools not ready yet. Output: $CHECK_OUTPUT"
+            fi
+          fi
+          
+          echo "Waiting for instance to be ready... ($WAIT_TIME/$MAX_WAIT seconds)"
+          sleep 15  # Increased wait time between checks
+          WAIT_TIME=$((WAIT_TIME + 15))
+        done
+        
+        if [ "$INSTANCE_READY" != "true" ]; then
+          echo "::error::Instance did not become ready within $MAX_WAIT seconds. Docker or AWS CLI may not be installed."
+          
+          # Try to get diagnostic information
+          echo "Attempting to get diagnostic information..."
+          aws ssm send-command \
+            --instance-ids ${{ env.APP_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["tail -n 50 /var/log/user-data.log || echo No user-data log found"]' \
+            --query "Command.CommandId" \
+            --output text > /tmp/diag_cmd_id 2>&1 || true
+          
+          sleep 5
+          aws ssm get-command-invocation \
+            --command-id "$(cat /tmp/diag_cmd_id)" \
+            --instance-id ${{ env.APP_INSTANCE_ID }} \
+            --query "StandardOutputContent" \
+            --output text 2>/dev/null || echo "Could not retrieve diagnostic logs"
+          
+          exit 1
+        fi
+        
+        # Pre-deployment verification
+        echo "Running pre-deployment verification..."
+        VERIFY_CMD=$(aws ssm send-command \
+          --instance-ids ${{ env.APP_INSTANCE_ID }} \
+          --document-name "AWS-RunShellScript" \
+          --parameters 'commands=["echo \"=== Pre-deployment verification ===\"","docker --version","aws --version","systemctl status docker --no-pager | head -10","ls -la /usr/bin/docker /usr/local/bin/aws","echo \"=== Verification complete ===\""]' \
+          --query "Command.CommandId" \
+          --output text)
+        
+        sleep 10
+        echo "Verification output:"
+        aws ssm get-command-invocation \
+          --command-id "$VERIFY_CMD" \
+          --instance-id ${{ env.APP_INSTANCE_ID }} \
+          --query "StandardOutputContent" \
+          --output text
+        
+        # Create commands JSON string for unified server with container escape vulnerabilities
+        COMMANDS_JSON='["bash -c \"export PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:\$PATH && docker stop hrportal || true && docker rm hrportal || true && aws ecr get-login-password --region '"${{ env.AWS_REGION }}"' | docker login --username AWS --password-stdin '"${{ steps.login-ecr.outputs.registry }}"' && docker pull '"${{ steps.build-image.outputs.image }}"' && docker run -d --name hrportal -p 80:8080 -e DB_HOST=\\\"'"$DB_HOST"'\\\" -e DB_USER=\\\"'"${{ env.RDS_USER }}"'\\\" -e DB_PASSWORD=\\\"'"${{ env.RDS_PASSWORD }}"'\\\" -e DB_NAME=\\\"'"${{ env.RDS_DATABASE }}"'\\\" -e PORT=\\\"8080\\\" --privileged --pid=host --cap-add=ALL --security-opt apparmor:unconfined --security-opt seccomp:unconfined -v /var/run/docker.sock:/var/run/docker.sock -v /:/host -e VITE_BASE_URL=\\\"http://localhost\\\" '"${{ steps.build-image.outputs.image }}"' && docker ps | grep hrportal\""]'
         
         echo "Using commands: $COMMANDS_JSON"
         
@@ -500,15 +600,66 @@ jobs:
                 echo '# Log file for installation' >> xdr_install.sh
                 echo 'LOG_FILE="/var/log/xdr_install.log"' >> xdr_install.sh
                 echo '' >> xdr_install.sh
-                echo 'yum install selinux-policy-devel.noarch -y' >> xdr_install.sh
+                echo '# Detect OS and install dependencies accordingly' >> xdr_install.sh
+                echo 'if [ -f /etc/os-release ]; then' >> xdr_install.sh
+                echo '  . /etc/os-release' >> xdr_install.sh
+                echo '  OS=$ID' >> xdr_install.sh
+                echo 'elif [ -f /etc/redhat-release ]; then' >> xdr_install.sh
+                echo '  OS="centos"' >> xdr_install.sh
+                echo 'else' >> xdr_install.sh
+                echo '  OS=$(uname -s)' >> xdr_install.sh
+                echo 'fi' >> xdr_install.sh
+                echo '' >> xdr_install.sh
+                echo '# Install OS-specific dependencies' >> xdr_install.sh
+                echo 'case $OS in' >> xdr_install.sh
+                echo '  ubuntu|debian)' >> xdr_install.sh
+                echo '    log "Detected Ubuntu/Debian system"' >> xdr_install.sh
+                echo '    # Ubuntu doesnt need selinux-policy-devel' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo '  centos|rhel|fedora)' >> xdr_install.sh
+                echo '    log "Detected CentOS/RHEL/Fedora system"' >> xdr_install.sh
+                echo '    yum install selinux-policy-devel.noarch -y' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo '  *)' >> xdr_install.sh
+                echo '    log "Unknown OS: $OS"' >> xdr_install.sh
+                echo '    ;;' >> xdr_install.sh
+                echo 'esac' >> xdr_install.sh
                 echo '' >> xdr_install.sh
                 echo '# Function for logging' >> xdr_install.sh
                 echo 'log() {' >> xdr_install.sh
                 echo '  echo "[$(date '"'"'+%Y-%m-%d %H:%M:%S'"'"')] $1" | tee -a "$LOG_FILE"' >> xdr_install.sh
                 echo '}' >> xdr_install.sh
                 echo '' >> xdr_install.sh
+                echo '# Function to install AWS CLI if missing' >> xdr_install.sh
+                echo 'ensure_aws_cli() {' >> xdr_install.sh
+                echo '  if ! command -v aws &> /dev/null; then' >> xdr_install.sh
+                echo '    log "AWS CLI not found, installing..."' >> xdr_install.sh
+                echo '    cd /tmp' >> xdr_install.sh
+                echo '    curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"' >> xdr_install.sh
+                echo '    unzip -q awscliv2.zip' >> xdr_install.sh
+                echo '    ./aws/install' >> xdr_install.sh
+                echo '    rm -rf awscliv2.zip aws/' >> xdr_install.sh
+                echo '    # Add to PATH for current session' >> xdr_install.sh
+                echo '    export PATH="/usr/local/bin:$PATH"' >> xdr_install.sh
+                echo '    if ! command -v aws &> /dev/null; then' >> xdr_install.sh
+                echo '      log "ERROR: Failed to install AWS CLI"' >> xdr_install.sh
+                echo '      return 1' >> xdr_install.sh
+                echo '    fi' >> xdr_install.sh
+                echo '    log "AWS CLI installed successfully"' >> xdr_install.sh
+                echo '  else' >> xdr_install.sh
+                echo '    log "AWS CLI found at: $(which aws)"' >> xdr_install.sh
+                echo '  fi' >> xdr_install.sh
+                echo '  return 0' >> xdr_install.sh
+                echo '}' >> xdr_install.sh
+                echo '' >> xdr_install.sh
                 echo '# Start installation process' >> xdr_install.sh
                 echo 'log "Starting Cortex XDR installation"' >> xdr_install.sh
+                echo '' >> xdr_install.sh
+                echo '# Ensure AWS CLI is available' >> xdr_install.sh
+                echo 'ensure_aws_cli' >> xdr_install.sh
+                echo 'if [ $? -ne 0 ]; then' >> xdr_install.sh
+                echo '  exit 1' >> xdr_install.sh
+                echo 'fi' >> xdr_install.sh
                 echo '' >> xdr_install.sh
                 echo '# Create temporary directory for download' >> xdr_install.sh
                 echo 'TEMP_DIR=$(mktemp -d)' >> xdr_install.sh
@@ -618,6 +769,66 @@ jobs:
                   echo "App Instance ID: $APP_INSTANCE_ID"
                   echo "Jenkins Instance ID: $JENKINS_INSTANCE_ID"
                   
+                  # Initialize status tracking
+                  APP_AWS_CLI="Unknown"
+                  APP_XDR="Not Attempted"
+                  JENKINS_AWS_CLI="Unknown"
+                  JENKINS_XDR="Not Attempted"
+                  
+                  # Check AWS CLI status on both instances
+                  echo "Checking AWS CLI installation status..."
+                  
+                  # Check App instance
+                  AWS_CHECK_CMD="command -v aws >/dev/null 2>&1 && aws --version || echo 'AWS CLI not found'"
+                  APP_AWS_CHECK=$(aws ssm send-command \
+                    --instance-ids "$APP_INSTANCE_ID" \
+                    --document-name "AWS-RunShellScript" \
+                    --parameters "commands=$AWS_CHECK_CMD" \
+                    --query "Command.CommandId" \
+                    --output text 2>/dev/null || echo "")
+                  
+                  if [ -n "$APP_AWS_CHECK" ]; then
+                    sleep 3
+                    APP_AWS_OUTPUT=$(aws ssm get-command-invocation \
+                      --command-id "$APP_AWS_CHECK" \
+                      --instance-id "$APP_INSTANCE_ID" \
+                      --query "StandardOutputContent" \
+                      --output text 2>/dev/null || echo "")
+                    
+                    if echo "$APP_AWS_OUTPUT" | grep -q "aws-cli"; then
+                      APP_AWS_CLI="✅ Installed"
+                      echo "✅ AWS CLI is installed on App instance"
+                    else
+                      APP_AWS_CLI="❌ Not Found"
+                      echo "❌ AWS CLI not found on App instance"
+                    fi
+                  fi
+                  
+                  # Check Jenkins instance
+                  JENKINS_AWS_CHECK=$(aws ssm send-command \
+                    --instance-ids "$JENKINS_INSTANCE_ID" \
+                    --document-name "AWS-RunShellScript" \
+                    --parameters "commands=$AWS_CHECK_CMD" \
+                    --query "Command.CommandId" \
+                    --output text 2>/dev/null || echo "")
+                  
+                  if [ -n "$JENKINS_AWS_CHECK" ]; then
+                    sleep 3
+                    JENKINS_AWS_OUTPUT=$(aws ssm get-command-invocation \
+                      --command-id "$JENKINS_AWS_CHECK" \
+                      --instance-id "$JENKINS_INSTANCE_ID" \
+                      --query "StandardOutputContent" \
+                      --output text 2>/dev/null || echo "")
+                    
+                    if echo "$JENKINS_AWS_OUTPUT" | grep -q "aws-cli"; then
+                      JENKINS_AWS_CLI="✅ Installed"
+                      echo "✅ AWS CLI is installed on Jenkins instance"
+                    else
+                      JENKINS_AWS_CLI="❌ Not Found"
+                      echo "❌ AWS CLI not found on Jenkins instance"
+                    fi
+                  fi
+                  
                   # Install XDR on both instances
                   for INSTANCE_ID in "$APP_INSTANCE_ID" "$JENKINS_INSTANCE_ID"; do
                     # Skip if instance ID is empty
@@ -673,11 +884,20 @@ jobs:
                         
                         if [ "$SSM_STATUS" == "Success" ]; then
                           echo "✅ XDR installation on instance $INSTANCE_ID completed successfully."
+                          if [ "$INSTANCE_ID" == "$APP_INSTANCE_ID" ]; then
+                            APP_XDR="✅ Installed"
+                          else
+                            JENKINS_XDR="✅ Installed"
+                          fi
                           break
                         elif [ "$SSM_STATUS" == "Failed" ]; then
                           echo "⚠️ XDR installation on instance $INSTANCE_ID encountered an issue. See logs for details."
                           echo "::warning::XDR installation failed on instance $INSTANCE_ID."
-                          echo "::notice::XDR Agent installation failed on instance $INSTANCE_ID: Installation script error"
+                          if [ "$INSTANCE_ID" == "$APP_INSTANCE_ID" ]; then
+                            APP_XDR="❌ Failed"
+                          else
+                            JENKINS_XDR="❌ Failed"
+                          fi
                           # Get the command output to understand the failure
                           aws ssm get-command-invocation \
                             --command-id "$SSM_COMMAND_ID" \
@@ -706,6 +926,12 @@ jobs:
                   done
                 fi
               fi
+              
+              # Export status variables for the deployment summary
+              echo "APP_AWS_CLI=$APP_AWS_CLI" >> $GITHUB_ENV
+              echo "APP_XDR=$APP_XDR" >> $GITHUB_ENV
+              echo "JENKINS_AWS_CLI=$JENKINS_AWS_CLI" >> $GITHUB_ENV
+              echo "JENKINS_XDR=$JENKINS_XDR" >> $GITHUB_ENV
             fi
           else
             echo "⚠️ No .tar.gz files found in xdr_install directory."
@@ -762,7 +988,7 @@ jobs:
         echo "## 🚀 Deployment URLs" >> $GITHUB_STEP_SUMMARY
         
         if [ -n "${{ env.APP_ALB_URL }}" ]; then
-          echo "* **Application (ALB)**: [${{ env.APP_ALB_URL }}](${{ env.APP_ALB_URL }})" >> $GITHUB_STEP_SUMMARY
+                      echo "* **Application (ALB)**: [${{ env.APP_ALB_URL }}](${{ env.APP_ALB_URL }})" >> $GITHUB_STEP_SUMMARY
         fi
         
         if [ -n "$EC2_IP" ] && [ "$EC2_IP" != "None" ]; then
@@ -771,11 +997,21 @@ jobs:
         
         if [ -n "$JENKINS_IP" ] && [ "$JENKINS_IP" != "None" ]; then
           echo "* **Jenkins Server**: [http://$JENKINS_IP:8080](http://$JENKINS_IP:8080)" >> $GITHUB_STEP_SUMMARY
-          echo "  * Username: `admin`" >> $GITHUB_STEP_SUMMARY
-          echo "  * Password: `admin123`" >> $GITHUB_STEP_SUMMARY
+          echo "  * Username: \`admin\`" >> $GITHUB_STEP_SUMMARY
+          echo "  * Password: \`admin123\`" >> $GITHUB_STEP_SUMMARY
         fi
         
         echo "* **Terraform State Bucket**: \`${{ env.TF_STATE_BUCKET }}\`" >> $GITHUB_STEP_SUMMARY
+        
+        # Add installation status summary
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📦 Installation Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Instance | AWS CLI | XDR Agent |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+        echo "| **App Instance** | ${APP_AWS_CLI:-Unknown} | ${APP_XDR:-Not Attempted} |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Jenkins Instance** | ${JENKINS_AWS_CLI:-Unknown} | ${JENKINS_XDR:-Not Attempted} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
         echo "Terraform state is stored in S3 bucket: ${{ env.TF_STATE_BUCKET }}"
         echo "To destroy this infrastructure, use the Destroy Infrastructure workflow with this bucket name." 

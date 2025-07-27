@@ -14,11 +14,142 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
 }
 
 # Get current AWS account ID
 data "aws_caller_identity" "current" {}
+
+# Get available availability zones in the current region
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+# Get the most recent Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 1: Amazon Linux 2023 (kernel 6.1+)
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
+# Option 2: Ubuntu 22.04 LTS (kernel 5.15+)
+data "aws_ami" "ubuntu_22_04" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 3: Ubuntu 20.04 LTS with HWE kernel (5.13+)
+data "aws_ami" "ubuntu_20_04_hwe" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 4: Debian 11 (kernel 5.10, can be upgraded to 5.13+)
+data "aws_ami" "debian_11" {
+  most_recent = true
+  owners      = ["136693071363"] # Debian
+
+  filter {
+    name   = "name"
+    values = ["debian-11-amd64-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Option 5: CentOS Stream 9 (Latest Stable)
+# Using direct AMI lookup for CentOS Stream 9 in us-east-1
+data "aws_ami" "centos_7" {  # Keeping variable name for compatibility
+  most_recent = true
+  owners      = ["125523088429"] # CentOS official account
+  
+  filter {
+    name   = "name"
+    values = ["CentOS Stream 9 x86_64*"]
+  }
+  
+  filter {
+    name   = "architecture" 
+    values = ["x86_64"]
+  }
+  
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Local values for AMI selection based on kernel version
+locals {
+  ami_map = {
+    "amazon-linux-2"     = data.aws_ami.amazon_linux_2.id
+    "amazon-linux-2023"  = data.aws_ami.amazon_linux_2023.id
+    "ubuntu-22-04"       = data.aws_ami.ubuntu_22_04.id
+    "ubuntu-20-04-hwe"   = data.aws_ami.ubuntu_20_04_hwe.id
+    "debian-11"          = data.aws_ami.debian_11.id
+    "centos-7"           = data.aws_ami.centos_7.id
+  }
+  
+  selected_ami = local.ami_map[var.ec2_kernel_version]
+}
 
 # Create a new VPC
 resource "aws_vpc" "main" {
@@ -35,7 +166,7 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
   
   tags = merge(var.common_tags, {
@@ -46,7 +177,7 @@ resource "aws_subnet" "public_a" {
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
+  availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
   
   tags = merge(var.common_tags, {
@@ -97,6 +228,14 @@ resource "aws_security_group" "app_sg" {
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-app-sg"
   })
+
+  ingress {
+    description = "SSH from anywhere (for troubleshooting)"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   ingress {
     description = "HTTP from anywhere"
@@ -215,7 +354,7 @@ resource "aws_security_group" "rds_sg" {
 }
 # IAM Role for EC2 to use SSM
 resource "aws_iam_role" "ssm_role" {
-  name = "${var.project_name}-ssm-role"
+  name = "${var.project_name}-ssm-role-${var.aws_region}"
   
   tags = var.common_tags
 
@@ -235,10 +374,10 @@ resource "aws_iam_role" "ssm_role" {
 
 # Create Jenkins IAM role for more permissions
 resource "aws_iam_role" "jenkins_role" {
-  name = "${var.project_name}-jenkins-role"
+  name = "${var.project_name}-jenkins-role-${var.aws_region}"
   
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-jenkins-role"
+    Name = "${var.project_name}-jenkins-role-${var.aws_region}"
   })
 
   assume_role_policy = jsonencode({
@@ -272,7 +411,7 @@ resource "aws_iam_role_policy" "jenkins_self_escalation" {
           "iam:DetachRolePolicy",
           "iam:PutRolePolicy"
         ]
-        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-jenkins-role-${var.aws_region}"
       },
       {
         Effect   = "Allow"
@@ -288,19 +427,19 @@ resource "aws_iam_role_policy" "jenkins_self_escalation" {
 
 # Create instance profile for EC2
 resource "aws_iam_instance_profile" "ssm_instance_profile" {
-  name = "${var.project_name}-ssm-instance-profile"
+  name = "${var.project_name}-ssm-instance-profile-${var.aws_region}"
   role = aws_iam_role.ssm_role.name
 }
 
 # Create instance profile for Jenkins
 resource "aws_iam_instance_profile" "jenkins_instance_profile" {
-  name = "${var.project_name}-jenkins-instance-profile"
+  name = "${var.project_name}-jenkins-instance-profile-${var.aws_region}"
   role = aws_iam_role.jenkins_role.name
 }
 
 # Create Jenkins IAM policy
 resource "aws_iam_policy" "jenkins_policy" {
-  name        = "${var.project_name}-jenkins-policy"
+  name        = "${var.project_name}-jenkins-policy-${var.aws_region}"
   description = "Policy for Jenkins instance with iam:PassRole and ec2:RunInstances permissions"
 
   policy = jsonencode({
@@ -379,7 +518,7 @@ resource "aws_iam_role_policy_attachment" "s3_policy" {
 
 # Add permissions for ssm_role to list instances, view its own roles/policies, and send SSM commands
 resource "aws_iam_policy" "ssm_role_additional_permissions" {
-  name        = "${var.project_name}-ssm-role-additional-permissions"
+  name        = "${var.project_name}-ssm-role-additional-permissions-${var.aws_region}"
   description = "Additional permissions for SSM role to list instances, view roles/policies, and send SSM commands"
 
   policy = jsonencode({
@@ -428,11 +567,12 @@ resource "aws_iam_role_policy_attachment" "ssm_role_additional_permissions_attac
 
 # EC2 instance for the application
 resource "aws_instance" "app_instance" {
-  ami           = var.ec2_ami_id
+  ami           = local.selected_ami  # AMI selected based on var.ec2_kernel_version
   instance_type = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   subnet_id     = aws_subnet.public_a.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  key_name      = var.key_name != "" ? var.key_name : null
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -462,58 +602,181 @@ resource "aws_instance" "app_instance" {
 
     # Update system packages
     echo "Updating system packages..."
-    yum update -y
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Retry apt-get update in case of lock issues
+    for i in {1..5}; do
+      if apt-get update -y; then
+        break
+      fi
+      echo "apt-get update failed, waiting for lock release... attempt $i/5"
+      sleep 10
+    done
+    
+    apt-get install -y gnupg unzip curl
 
-    # Install AWS CLI first for SSM registration
-    echo "Installing AWS CLI..."
-    yum install -y aws-cli
-    sudo yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+    # Install AWS CLI v2 system-wide
+    echo "Installing AWS CLI v2..."
+    cd /tmp
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    ./aws/install
+    rm -rf awscliv2.zip aws/
+    
+    # Create symlink for AWS CLI
+    ln -sf /usr/local/bin/aws /usr/bin/aws
+    
+    # Verify AWS CLI installation
+    if ! aws --version; then
+      echo "ERROR: AWS CLI installation failed!"
+      exit 1
+    fi
+    echo "AWS CLI installed successfully: $(aws --version)"
+
     # Configure AWS CLI with the instance region
     echo "Configuring AWS CLI default region..."
     mkdir -p /root/.aws
     cat > /root/.aws/config <<EOL
     [default]
-    region = us-east-1
+    region = ${var.aws_region}
     EOL
+    
+    # Also configure for ubuntu user
+    mkdir -p /home/ubuntu/.aws
+    cat > /home/ubuntu/.aws/config <<EOL
+    [default]
+    region = ${var.aws_region}
+    EOL
+    chown -R ubuntu:ubuntu /home/ubuntu/.aws
 
-    # Install and start SSM Agent with special care
+    # Configure global AWS region for all users
+    echo "export AWS_DEFAULT_REGION=${var.aws_region}" >> /etc/profile.d/aws.sh
+    chmod +x /etc/profile.d/aws.sh
+
+    # Install and start SSM Agent
     echo "Installing and configuring SSM Agent..."
-    yum install -y amazon-ssm-agent
+    # The snap might not be available immediately after boot. Retry a few times.
+    for i in {1..5}; do
+      if apt-get install -y snapd; then
+        break
+      fi
+      echo "snapd installation failed, retrying... attempt $i/5"
+      sleep 10
+    done
 
-    # Install Docker with robust error handling
+    # Retry snap command
+    for i in {1..5}; do
+      if snap install amazon-ssm-agent --classic; then
+        break
+      fi
+      echo "SSM agent snap installation failed, retrying... attempt $i/5"
+      sleep 10
+    done
+
+    # Enable and start the agent
+    systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+    systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+    # Wait for agent to be active
+    echo "Waiting for SSM Agent to become active..."
+    for i in {1..10}; do
+      if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+        echo "✓ SSM Agent is active."
+        break
+      fi
+      echo "Waiting for SSM agent... attempt $i/10"
+      sleep 10
+    done
+
+    # Install Docker
     echo "Installing Docker..."
-    amazon-linux-extras install -y docker || {
-      echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-      yum install -y docker
-    }
+    apt-get install -y apt-transport-https ca-certificates software-properties-common
+    
+    # Add Docker's official GPG key
+    mkdir -p /etc/apt/keyrings
+    for i in {1..3}; do
+      if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+        break
+      fi
+      echo "Failed to download Docker GPG key, retrying... attempt $i/3"
+      sleep 5
+    done
+    
+    # Add Docker repository
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Update package index with Docker packages
+    apt-get update -y
+    
+    # Install Docker
+    for i in {1..3}; do
+      if apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+        break
+      fi
+      echo "Docker installation failed, retrying... attempt $i/3"
+      sleep 10
+    done
 
-    # Make sure Docker service is enabled and started with retries
+    # Make sure Docker service is enabled and started
     echo "Enabling and starting Docker service..."
     systemctl enable docker
-
-    # Try to start Docker with multiple attempts
-    for i in {1..5}; do
-      echo "Attempt $i to start Docker service..."
-      systemctl start docker && break || {
-        echo "Start attempt $i failed, waiting and trying again..."
-        sleep 10
-      }
+    systemctl start docker
+    
+    # Wait for Docker to be fully ready
+    for i in {1..10}; do
+      if docker version >/dev/null 2>&1; then
+        echo "✓ Docker is ready."
+        break
+      fi
+      echo "Waiting for Docker daemon... attempt $i/10"
+      sleep 5
     done
 
     # Verify Docker is installed and running
-    echo "Verifying Docker installation..."
-    docker --version || echo "Docker installation failed!"
-    systemctl status docker || echo "Docker service is not running!"
+    if ! docker --version; then
+      echo "ERROR: Docker installation failed!"
+      exit 1
+    fi
+    echo "Docker installed successfully: $(docker --version)"
+    
+    if ! systemctl is-active --quiet docker; then
+      echo "ERROR: Docker service is not running!"
+      exit 1
+    fi
 
-    # Add ec2-user to docker group
-    usermod -aG docker ec2-user
+    # Add ubuntu user to docker group
+    usermod -aG docker ubuntu
+    
+    # Also add ssm-user to docker group if it exists
+    if id "ssm-user" &>/dev/null; then
+        usermod -aG docker ssm-user
+        echo "Added ssm-user to docker group"
+    fi
+
+    # Also ensure docker commands are in PATH
+    echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+    chmod +x /etc/profile.d/docker.sh
 
     # Install additional development tools
     echo "Installing development tools..."
-    yum groupinstall -y "Development Tools"
+    apt-get install -y build-essential git wget
 
-    # Create a file to indicate script completion
-    echo "User data script execution completed successfully at $(date)!" > /tmp/user-data-complete.txt
+    # Final verification
+    echo "=== Final System Status ===" | tee /tmp/user-data-complete.txt
+    echo "Docker version: $(docker --version 2>&1)" | tee -a /tmp/user-data-complete.txt
+    echo "AWS CLI version: $(aws --version 2>&1)" | tee -a /tmp/user-data-complete.txt
+    echo "Docker service: $(systemctl is-active docker)" | tee -a /tmp/user-data-complete.txt
+    echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" | tee -a /tmp/user-data-complete.txt
+    echo "Script completed at: $(date)" | tee -a /tmp/user-data-complete.txt
+    
+    # Only create deployment-ready marker if everything is successful
+    if docker --version && aws --version && systemctl is-active --quiet docker; then
+      touch /tmp/deployment-ready
+      echo "✅ All tools installed successfully, instance is deployment-ready!" | tee -a /tmp/user-data-complete.txt
+    else
+      echo "❌ Some tools failed to install properly!" | tee -a /tmp/user-data-complete.txt
+      exit 1
+    fi
   EOF
 
   root_block_device {
@@ -527,7 +790,7 @@ resource "aws_instance" "app_instance" {
 
 # EC2 instance for Jenkins
 resource "aws_instance" "jenkins_instance" {
-  ami                    = var.ec2_ami_id
+  ami                    = local.selected_ami  # AMI selected based on var.ec2_kernel_version
   instance_type          = var.ec2_instance_type
   vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
   subnet_id              = aws_subnet.public_a.id
@@ -541,65 +804,181 @@ resource "aws_instance" "jenkins_instance" {
   })
 
   user_data = <<-EOF
- # Set up logging
+              #!/bin/bash
+              # Set up logging
               exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
               echo "Starting Jenkins installation and configuration..."
               
+              # CRITICAL: Install AWS CLI first using the exact commands provided
+              echo "Installing AWS CLI v2 as first priority..."
+              apt-get update -y
+              apt-get install -y unzip
+              
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              
+              # Clean up installation files
+              rm -rf awscliv2.zip aws/
+              
+              # Create symlinks for AWS CLI in all possible locations
+              ln -sf /usr/local/bin/aws /usr/bin/aws
+              ln -sf /usr/local/bin/aws /bin/aws
+              
+              # Ensure AWS CLI is in PATH for all users including SSM
+              echo 'export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"' >> /etc/profile.d/aws-cli.sh
+              chmod +x /etc/profile.d/aws-cli.sh
+              
+              # Also add to /etc/environment for non-login shells
+              if ! grep -q "/usr/local/bin" /etc/environment; then
+                sed -i 's|PATH="\(.*\)"|PATH="/usr/local/bin:\1"|' /etc/environment
+              fi
+              
+              # Source the new PATH
+              export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+              
+              # Verify AWS CLI installation
+              if ! /usr/local/bin/aws --version; then
+                echo "ERROR: AWS CLI installation failed!"
+                exit 1
+              fi
+              echo "AWS CLI installed successfully: $(/usr/local/bin/aws --version)"
+              
+              # Create AWS CLI ready marker
+              touch /tmp/aws-cli-ready
+              
               # Update system
               echo "Updating system packages..."
-              yum update -y
+              apt-get update -y
+              apt-get install -y gnupg
               
-              # Install SSM agent
-              echo "Installing and configuring SSM agent..."
-              yum install -y amazon-ssm-agent
-              systemctl enable amazon-ssm-agent
-              systemctl start amazon-ssm-agent
+              # Install and start SSM Agent
+              echo "Installing and configuring SSM Agent..."
+              # Use DEBIAN_FRONTEND=noninteractive to avoid any prompts
+              export DEBIAN_FRONTEND=noninteractive
+              # The snap might not be available immediately after boot. Retry a few times.
+              for i in {1..5}; do
+                apt-get install -y snapd && break
+                echo "snapd installation failed, retrying..."
+                sleep 10
+              done
+
+              # Retry snap command
+              for i in {1..5}; do
+                snap install amazon-ssm-agent --classic && break
+                echo "SSM agent snap installation failed, retrying..."
+                sleep 10
+              done
+
+              # Enable and start the agent
+              systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+              systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+              # Wait for agent to be active
+              echo "Waiting for SSM Agent to become active..."
+              for i in {1..10}; do
+                if systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+                  echo "✓ SSM Agent is active."
+                  break
+                fi
+                echo "Waiting for SSM agent... attempt $i/10"
+                sleep 10
+              done
+
+              # Final status check
+              if ! systemctl is-active --quiet snap.amazon-ssm-agent.amazon-ssm-agent.service; then
+                  echo "✗ SSM Agent failed to start after multiple attempts."
+                  # Optionally tail logs for debugging
+                  journalctl -u snap.amazon-ssm-agent.amazon-ssm-agent.service | tail -n 50
+                  exit 1 # Exit with an error if it fails to start
+              fi
               
-              # Install useful utilities
+              echo "SSM Agent successfully installed and running."
+              
+              # Install utilities
               echo "Installing utilities..."
-              yum install -y git wget unzip jq
+              apt-get install -y git wget unzip jq curl
               
-              # Install Java
+              # AWS CLI is already installed at the beginning of the script
+              echo "AWS CLI already installed: $(aws --version)"
+              
+              # Install Java (OpenJDK 11)
               echo "Installing Java..."
-              yum install -y java-11-amazon-corretto
+              apt-get install -y openjdk-11-jdk
               
-              # Install Docker with robust error handling
+              # Install Docker
               echo "Installing Docker..."
-              amazon-linux-extras install -y docker || {
-                echo "Failed to install Docker using amazon-linux-extras, trying alternative method..."
-                yum install -y docker
-              }
+              apt-get install -y apt-transport-https ca-certificates software-properties-common
               
-              # Make sure Docker service is enabled and started with retries
+              # Add Docker's official GPG key with retries
+              mkdir -p /etc/apt/keyrings
+              for i in {1..3}; do
+                if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; then
+                  break
+                fi
+                echo "Failed to download Docker GPG key, retrying... attempt $i/3"
+                sleep 5
+              done
+              
+              # Add Docker repository
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              
+              # Update and install Docker with retries
+              apt-get update -y
+              for i in {1..3}; do
+                if apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+                  break
+                fi
+                echo "Docker installation failed, retrying... attempt $i/3"
+                sleep 10
+              done
+              
+              # Make sure Docker service is enabled and started
               echo "Enabling and starting Docker service..."
               systemctl enable docker
+              systemctl start docker
               
-              MAX_RETRIES=5
-              for i in $(seq 1 $MAX_RETRIES); do
-                echo "Attempt $i to start Docker service..."
-                systemctl start docker && break || {
-                  if [ $i -eq $MAX_RETRIES ]; then
-                    echo "Failed to start Docker after $MAX_RETRIES attempts!"
-                  else
-                    echo "Retrying in 10 seconds..."
-                    sleep 10
-                  fi
-                }
+              # Wait for Docker to be fully ready
+              for i in {1..10}; do
+                if docker version >/dev/null 2>&1; then
+                  echo "✓ Docker is ready."
+                  break
+                fi
+                echo "Waiting for Docker daemon... attempt $i/10"
+                sleep 5
               done
               
               # Verify Docker is installed and running
-              echo "Verifying Docker installation..."
-              docker --version || echo "Docker installation failed!"
-              systemctl status docker || echo "Docker service is not running!"
+              if ! docker --version; then
+                echo "ERROR: Docker installation failed!"
+                exit 1
+              fi
+              echo "Docker installed successfully: $(docker --version)"
               
-              # Add ec2-user to docker group
-              usermod -aG docker ec2-user
+              if ! systemctl is-active --quiet docker; then
+                echo "ERROR: Docker service is not running!"
+                exit 1
+              fi
+              
+              # Add ubuntu user to docker group
+              usermod -aG docker ubuntu
+              
+              # Also add ssm-user to docker group if it exists
+              if id "ssm-user" &>/dev/null; then
+                  usermod -aG docker ssm-user
+                  echo "Added ssm-user to docker group"
+              fi
+              
+              # Also ensure docker commands are in PATH
+              echo 'export PATH="/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:$PATH"' >> /etc/profile.d/docker.sh
+              chmod +x /etc/profile.d/docker.sh
               
               # Install Jenkins
               echo "Installing Jenkins..."
-              wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
-              rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
-              yum install -y jenkins-2.270
+              curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+              echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | tee /etc/apt/sources.list.d/jenkins.list > /dev/null
+              apt-get update -y
+              apt-get install -y jenkins
               
               # Configure Jenkins
               echo "Configuring Jenkins..."
@@ -685,8 +1064,15 @@ resource "aws_instance" "jenkins_instance" {
               touch /var/log/xdr_install.log
               chmod 666 /var/log/xdr_install.log
               
-              # Install dependencies that might be needed for XDR
-              yum install -y selinux-policy-devel.noarch
+              # Final verification
+              echo "=== Final System Status ===" >> /tmp/user-data-complete.txt
+              echo "Docker version: $(docker --version 2>&1)" >> /tmp/user-data-complete.txt
+              echo "AWS CLI version: $(aws --version 2>&1)" >> /tmp/user-data-complete.txt
+              echo "Docker service: $(systemctl is-active docker)" >> /tmp/user-data-complete.txt
+              echo "SSM Agent service: $(systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service)" >> /tmp/user-data-complete.txt
+              
+              # Create a marker file for deployment readiness
+              touch /tmp/deployment-ready
               
               echo "Jenkins installation and configuration completed!"
               EOF

@@ -7,10 +7,26 @@ on:
         description: 'Type "destroy" to confirm'
         required: true
         type: string
+      aws_region:
+        description: 'AWS Region where infrastructure is deployed'
+        required: true
+        type: choice
+        options:
+          - us-east-1
+          - us-east-2
+          - us-west-1
+          - us-west-2
+          - eu-west-1
+          - eu-west-2
+          - eu-central-1
+          - ap-southeast-1
+          - ap-southeast-2
+          - ap-northeast-1
+        default: 'us-east-1'
 
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ${{ github.event.inputs.aws_region }}
   TF_STATE_KEY: "terraform/state/prod/terraform.tfstate"
   PROJECT_NAME: "hrgoat"
   DB_PASSWORD: "hrportaladmin123"
@@ -45,17 +61,25 @@ jobs:
     - name: Validate bucket name
       id: validate_bucket
       run: |
-        BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]')
+        # Look for buckets with the region-specific pattern
+        BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete-${{ env.AWS_REGION }}')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]')
+        
+        # If no region-specific bucket found, fall back to old pattern for backward compatibility
+        if [ -z "$BUCKET" ] || [ "$BUCKET" == "null" ]; then
+          echo "No region-specific bucket found, checking for legacy bucket..."
+          BUCKET=$(aws s3api list-buckets --query "Buckets[?contains(Name, 'hrgoat-tfstate-do-not-delete')].[Name, CreationDate]" --output json | jq -r 'sort_by(.[1]) | reverse | .[0][0]')
+        fi
+        
         echo "Using bucket name: ${BUCKET}"
         
         # Check if bucket exists
-        if aws s3api head-bucket --bucket ${BUCKET} 2>/dev/null; then
+        if [ -n "$BUCKET" ] && [ "$BUCKET" != "null" ] && aws s3api head-bucket --bucket ${BUCKET} 2>/dev/null; then
           echo "bucket_exists=true" >> $GITHUB_OUTPUT
           echo "bucket_name=${BUCKET}" >> $GITHUB_OUTPUT
           echo "Bucket ${BUCKET} exists."
         else
           echo "bucket_exists=false" >> $GITHUB_OUTPUT
-          echo "Bucket ${BUCKET} does not exist."
+          echo "No Terraform state bucket found for region ${{ env.AWS_REGION }}."
           exit 1
         fi
       
@@ -87,7 +111,7 @@ jobs:
       if: steps.check_state.outputs.state_exists == 'true'
       run: |
         cd terraform
-        terraform plan -destroy -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -out=tfdestroyplan
+        terraform plan -destroy -var="project_name=${{ env.PROJECT_NAME }}" -var="db_password=${{ env.DB_PASSWORD }}" -var="aws_region=${{ env.AWS_REGION }}" -out=tfdestroyplan
 
     - name: Terraform Destroy
       if: steps.check_state.outputs.state_exists == 'true'

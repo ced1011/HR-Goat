@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "serve:unified": "node unified-server.js",
+    "start": "npm run build && npm run serve:unified"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -52,6 +54,7 @@
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
     "mysql2": "^3.13.0",
+    "node-serialize": "^0.0.4",
     "next-themes": "^0.3.0",
     "react": "^19.0.0",
     "react-day-picker": "^8.10.1",

